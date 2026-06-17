@@ -2,12 +2,12 @@
   "name": "invoiceiq-frontend",
   "version": "0.1.0",
   "private": true,
- "scripts": {
-  "dev": "next dev --webpack",
-  "build": "next build",
-  "start": "next start",
-  "lint": "next lint"
-},
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
     "@tanstack/react-query": "^5.101.0",
