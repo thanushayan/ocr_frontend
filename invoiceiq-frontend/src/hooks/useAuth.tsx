@@ -1,24 +1,26 @@
 'use client'
 
-import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react'
+import { useState, useEffect, createContext, useContext, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { authLib } from '../lib/auth'
 import { authService } from '../services/auth.service'
-import { User, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth.types'
+import { User, LoginRequest, RegisterRequest, UpdateProfileRequest } from '../types/auth.types'
 
 interface AuthContextType {
   user: User | null
+  companyId: string | null
   isLoading: boolean
   isAuthenticated: boolean
-  login: (data: LoginRequest) => Promise<{ requiresTwoFactor?: boolean; email?: string }>
+  login: (data: LoginRequest) => Promise<void>
   register: (data: RegisterRequest) => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
+  updateProfile: (body: UpdateProfileRequest) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
@@ -31,13 +33,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       if (authLib.isLoggedIn()) {
         const cached = authLib.getUser<User>()
-        if (cached) {
-          setUser(cached)
-        } else {
-          const me = await authService.getMe()
-          setUser(me)
-          authLib.setUser(me)
-        }
+        if (cached) setUser(cached)
+
+        const me = await authService.getMe()
+        setUser(me)
+        authLib.setUser(me)
       }
     } catch {
       authLib.clearAll()
@@ -46,30 +46,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }
 
-  async function login(data: LoginRequest): Promise<{ requiresTwoFactor?: boolean; email?: string }> {
+  async function login(data: LoginRequest): Promise<void> {
     const res = await authService.login(data)
-    if ('requiresTwoFactor' in res && res.requiresTwoFactor) {
-      return { requiresTwoFactor: true, email: data.email }
-    }
-    const authRes = res as AuthResponse
-    authLib.setTokens(authRes.token, authRes.refreshToken)
-    authLib.setUser(authRes.user)
-    setUser(authRes.user)
-    return {}
+    authLib.setTokens(res.token, res.refreshToken ?? '')
+    const me = await authService.getMe()
+    setUser(me)
+    authLib.setUser(me)
   }
 
   async function register(data: RegisterRequest): Promise<void> {
     const res = await authService.register(data)
-    authLib.setTokens(res.token, res.refreshToken)
-    authLib.setUser(res.user)
-    setUser(res.user)
+    authLib.setTokens(res.token, res.refreshToken ?? '')
+    const me = await authService.getMe()
+    setUser(me)
+    authLib.setUser(me)
   }
 
   async function logout(): Promise<void> {
     try {
       await authService.logout()
     } catch {
-      // continue even if API fails
+      // API fail ஆனாலும் தொடரு
     } finally {
       authLib.clearAll()
       setUser(null)
@@ -83,20 +80,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     authLib.setUser(me)
   }
 
-  return React.createElement(
-    AuthContext.Provider,
-    {
-      value: {
+  async function updateProfile(body: UpdateProfileRequest): Promise<void> {
+    const me = await authService.updateProfile(body)
+    setUser(me)
+    authLib.setUser(me)
+  }
+
+  return (
+    <AuthContext.Provider
+      value={{
         user,
+        companyId: user?.companyId ?? null,
         isLoading,
         isAuthenticated: !!user,
         login,
         register,
         logout,
         refreshUser,
-      },
-    },
-    children,
+        updateProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   )
 }
 

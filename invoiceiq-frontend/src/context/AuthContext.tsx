@@ -24,7 +24,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // App start ஆகும்போது cookie-ல் token இருந்தா user fetch பண்ணு
   useEffect(() => {
     const token = Cookies.get('accessToken')
     if (!token) { setIsLoading(false); return }
@@ -32,11 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authService.getMe()
       .then((u) => {
         setUser(u)
-        // companyId — getMe response-ல் வரும் (நாம் backend-ல் சேர்த்தோம்)
-        if (u.companyId) {
-          setCompanyId(u.companyId)
-          Cookies.set('companyId', u.companyId, { expires: 1 })
-        }
+        if (u.companyId) setCompanyId(u.companyId)
       })
       .catch(() => {
         Cookies.remove('accessToken')
@@ -47,15 +42,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (email: string, password: string) => {
+    // authService.login — token cookie-ல் save பண்ணிடும் (saveTokens)
     const res = await authService.login({ email, password })
-    // login response-ல் companyId நேரடியா வரும்
-    if (res.companyId) {
-      setCompanyId(res.companyId)
-      Cookies.set('companyId', res.companyId, { expires: 1 })
-    }
-    // getMe call பண்ணி full user profile எடு
+    if (res.companyId) setCompanyId(res.companyId)
+    // getMe — full user profile (companyId, role எல்லாம்)
     const u = await authService.getMe()
     setUser(u)
+    if (u.companyId) setCompanyId(u.companyId)
   }
 
   const register = async (
@@ -65,18 +58,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     companyName: string
   ) => {
     const res = await authService.register({ fullName, email, password, companyName })
-    if (res.companyId) {
-      setCompanyId(res.companyId)
-      Cookies.set('companyId', res.companyId, { expires: 1 })
-    }
+    if (res.companyId) setCompanyId(res.companyId)
     const u = await authService.getMe()
     setUser(u)
+    if (u.companyId) setCompanyId(u.companyId)
   }
 
   const logout = async () => {
-    await authService.logout()
-    setUser(null)
-    setCompanyId(null)
+    try {
+      await authService.logout()  // token cookies clear பண்ணிடும்
+    } catch {
+      // API fail ஆனாலும் local clear பண்ணு
+      Cookies.remove('accessToken')
+      Cookies.remove('refreshToken')
+      Cookies.remove('companyId')
+    } finally {
+      setUser(null)
+      setCompanyId(null)
+    }
   }
 
   const refreshUser = async () => {
