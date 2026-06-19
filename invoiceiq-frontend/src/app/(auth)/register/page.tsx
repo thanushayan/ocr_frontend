@@ -291,13 +291,13 @@ export default function RegisterPage() {
         {/* OAuth — side by side */}
         <div className="flex gap-2">
           <a
-            href={`${process.env.NEXT_PUBLIC_API_URL}/auth/oauth/google`}
+           href={`${process.env.NEXT_PUBLIC_API_URL}/api/auth/oauth/google`}
             className="flex-1 flex items-center justify-center gap-2 h-11 border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all text-sm font-semibold text-gray-700"
           >
             <GoogleIcon /> Google
           </a>
           <a
-            href={`${process.env.NEXT_PUBLIC_API_URL}/auth/oauth/microsoft`}
+           href={`${process.env.NEXT_PUBLIC_API_URL}/api/auth/oauth/microsoft`}
             className="flex-1 flex items-center justify-center gap-2 h-11 border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all text-sm font-semibold text-gray-700"
           >
             <MicrosoftIcon /> Microsoft

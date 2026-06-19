@@ -76,50 +76,31 @@ export default function LoginPage() {
   }
 
   // உள்நுழைவு submit
-  const onLoginSubmit = async (data: LoginFormData) => {
-    setIsLoading(true)
-    setLoginError('')
-    try {
-      const result = await login(data)
-      if (result.requiresTwoFactor) {
-        // இரண்டு-படி சரிபார்ப்பு தேவை
-        setRequiresTwoFactor(true)
-        setTwoFactorEmail(result.email ?? data.email)
-        return
-      }
-      toast.success('Welcome back! Login successful')
-      router.push('/dashboard')
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } }
-      setLoginError(err?.response?.data?.message ?? 'Incorrect email or password. Please try again.')
-    } finally {
-      setIsLoading(false)
-    }
+ const onLoginSubmit = async (data: LoginFormData) => {
+  setIsLoading(true)
+  setLoginError('')
+  try {
+    await login(data)                          // ✅ result expect பண்ணாதே
+    toast.success('Welcome back! Login successful')
+    router.push('/dashboard')
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } }
+    setLoginError(err?.response?.data?.message ?? 'Incorrect email or password. Please try again.')
+  } finally {
+    setIsLoading(false)
   }
-
+}
   // இரண்டு-படி சரிபார்ப்பு submit
+  // இரண்டு-படி சரிபார்ப்பு submit — Phase 2-ல் connect பண்ணப்படும்
   const onTwoFactorSubmit = async () => {
     const code = otpDigits.join('')
     if (code.length < 6) {
       toast.error('Enter the complete 6-digit code')
       return
     }
-    setIsLoading(true)
-    try {
-      const { authService } = await import('../../../services/auth.service')
-      const { authLib } = await import('../../../lib/auth')
-      const res = await authService.verifyTwoFactor({ email: twoFactorEmail, code })
-      authLib.setTokens(res.token, res.refreshToken)
-      authLib.setUser(res.user)
-      toast.success('Welcome back! Login successful')
-      router.push('/dashboard')
-    } catch {
-      toast.error('Invalid code. Please try again')
-    } finally {
-      setIsLoading(false)
-    }
+    // TODO: 2FA backend connect — auth.service-ல் verifyTwoFactor சேர்த்தப்பறம்
+    toast.error('2FA is not enabled yet')
   }
-
   // Background gradient
   const bgStyle: React.CSSProperties = {
     minHeight: '100vh',
