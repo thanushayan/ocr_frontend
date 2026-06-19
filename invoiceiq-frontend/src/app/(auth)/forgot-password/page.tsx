@@ -134,7 +134,7 @@ export default function ForgotPasswordPage() {
   const onForgotSubmit = async (data: ForgotFormData) => {
     setIsLoading(true)
     try {
-      await authService.forgotPassword({ email: data.email })
+      await authService.forgotPassword(data.email)
       setSentEmail(data.email)
       setShowSuccess(true)
     } catch {
@@ -152,11 +152,7 @@ export default function ForgotPasswordPage() {
     }
     setIsLoading(true)
     try {
-      await authService.resetPassword({
-        token,
-        email:       emailParam,
-        newPassword: data.password,
-      })
+     await authService.resetPassword(token, data.password)
       setResetSuccess(true)
     } catch {
       toast.error('Reset failed. The link may have expired.')
