@@ -2,10 +2,30 @@ export interface User {
   id: string
   fullName: string
   email: string
-  companyId: string
-  role: string
+  isActive: boolean
+  createdAt: string
+  avatarUrl?: string
+  phone?: string
+  jobTitle?: string
   preferredLanguage: string
   twoFactorEnabled: boolean
+  twoFactorMethod?: string
+  lastLoginAt?: string
+  companyId?: string
+  companyName?: string
+  role?: string
+}
+
+export interface AuthResponse {
+  token: string
+  refreshToken?: string
+  fullName: string
+  email: string
+  userId: string
+  expiresAt: string
+  companyId?: string
+  companyName?: string
+  role?: string
 }
 
 export interface LoginRequest {
@@ -20,40 +40,10 @@ export interface RegisterRequest {
   companyName: string
 }
 
-export interface AuthResponse {
-  token: string
-  refreshToken: string
-  user: User
-}
-
-export interface RefreshTokenRequest {
-  refreshToken: string
-}
-
-export interface ForgotPasswordRequest {
-  email: string
-}
-
-export interface ResetPasswordRequest {
-  token: string
-  email: string
-  newPassword: string
-}
-
-export interface ChangePasswordRequest {
-  currentPassword: string
-  newPassword: string
-  confirmPassword: string
-}
-
-export interface TwoFactorVerifyRequest {
-  email: string
-  code: string
-}
-
-export interface TwoFactorResponse {
-  requiresTwoFactor: boolean
-  token?: string
-  refreshToken?: string
-  user?: User
+export interface UpdateProfileRequest {
+  fullName?: string
+  phone?: string
+  jobTitle?: string
+  preferredLanguage?: string
+  avatarUrl?: string
 }

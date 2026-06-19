@@ -1,47 +1,53 @@
 import api from '../lib/axios'
-import {
-  LoginRequest,
-  RegisterRequest,
-  AuthResponse,
-  ForgotPasswordRequest,
-  ResetPasswordRequest,
-  ChangePasswordRequest,
-  TwoFactorVerifyRequest,
-  TwoFactorResponse,
-  User,
-} from '../types/auth.types'
+import Cookies from 'js-cookie'
+import { LoginRequest, RegisterRequest, AuthResponse, User, UpdateProfileRequest } from '../types/auth.types'
+
+function saveTokens(data: AuthResponse) {
+  Cookies.set('accessToken', data.token, { expires: 1 })
+  if (data.refreshToken) Cookies.set('refreshToken', data.refreshToken, { expires: 7 })
+  if (data.companyId) Cookies.set('companyId', data.companyId, { expires: 1 })
+}
 
 export const authService = {
-  async login(data: LoginRequest): Promise<AuthResponse | TwoFactorResponse> {
-    const res = await api.post('/auth/login', data)
-    return res.data
+  async login(body: LoginRequest): Promise<AuthResponse> {
+    const { data } = await api.post<AuthResponse>('/api/auth/login', body)
+    saveTokens(data)
+    return data
   },
-  async register(data: RegisterRequest): Promise<AuthResponse> {
-    const res = await api.post('/auth/register', data)
-    return res.data
+
+  async register(body: RegisterRequest): Promise<AuthResponse> {
+    const { data } = await api.post<AuthResponse>('/api/auth/register', body)
+    saveTokens(data)
+    return data
   },
-  async forgotPassword(data: ForgotPasswordRequest): Promise<void> {
-    await api.post('/auth/forgot-password', data)
-  },
-  async resetPassword(data: ResetPasswordRequest): Promise<void> {
-    await api.post('/auth/reset-password', data)
-  },
-  async changePassword(data: ChangePasswordRequest): Promise<void> {
-    await api.post('/auth/change-password', data)
-  },
-  async verifyTwoFactor(data: TwoFactorVerifyRequest): Promise<AuthResponse> {
-    const res = await api.post('/auth/2fa/verify', data)
-    return res.data
-  },
+
   async getMe(): Promise<User> {
-    const res = await api.get('/auth/me')
-    return res.data
+    const { data } = await api.get<User>('/api/auth/me')
+    return data
   },
+
+  async updateProfile(body: UpdateProfileRequest): Promise<User> {
+    const { data } = await api.patch<User>('/api/auth/me', body)
+    return data
+  },
+
+  async forgotPassword(email: string): Promise<void> {
+    await api.post('/api/auth/forgot-password', { email })
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await api.post('/api/auth/reset-password', { token, newPassword })
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await api.post('/api/auth/change-password', { currentPassword, newPassword })
+  },
+
   async logout(): Promise<void> {
-    await api.post('/auth/logout-all')
-  },
-  async refreshToken(refreshToken: string): Promise<AuthResponse> {
-    const res = await api.post('/auth/refresh', { refreshToken })
-    return res.data
+    try { await api.post('/api/auth/logout-all') } finally {
+      Cookies.remove('accessToken')
+      Cookies.remove('refreshToken')
+      Cookies.remove('companyId')
+    }
   },
 }
