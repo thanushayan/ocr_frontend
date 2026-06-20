@@ -1,28 +1,29 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell,
 } from 'recharts'
 import {
-  FileText, Clock, CheckCircle, XCircle,
+  FileText, Clock, CheckCircle,
   TrendingUp, AlertCircle, ChevronRight, Eye
 } from 'lucide-react'
 import Link from 'next/link'
+import { useAuth } from '../../../hooks/useAuth'
+import { dashboardService } from '../../../services/dashboard.service'
+import { DashboardData } from '../../../types/dashboard.types'
 
-// டம்மி KPI தரவு
+// Dummy fallback data
 const dummyKpis = {
   totalInvoices: 1284,
   pendingApproval: 47,
   approved: 1102,
   rejected: 135,
   totalSpend: 284750.00,
-  avgProcessingTime: 2.4,
 }
 
-// டம்மி ஸ்பெண்ட் ட்ரெண்ட் தரவு
 const spendTrendData = [
   { month: 'Jan', amount: 45000 },
   { month: 'Feb', amount: 52000 },
@@ -38,15 +39,7 @@ const spendTrendData = [
   { month: 'Dec', amount: 79000 },
 ]
 
-// டம்மி இன்வாய்ஸ் நிலை தரவு
-const statusData = [
-  { name: 'Approved', value: 1102, color: '#10b981' },
-  { name: 'Pending', value: 47, color: '#f59e0b' },
-  { name: 'Rejected', value: 135, color: '#ef4444' },
-]
-
-// டம்மி சமீபத்திய இன்வாய்ஸ்கள்
-const recentInvoices = [
+const dummyRecentInvoices = [
   { id: 'INV-2024-001', vendor: 'Acme Corp', amount: 12500.00, date: '2024-01-15', status: 'pending' },
   { id: 'INV-2024-002', vendor: 'Tech Solutions Ltd', amount: 8750.50, date: '2024-01-14', status: 'approved' },
   { id: 'INV-2024-003', vendor: 'Global Supplies', amount: 3200.00, date: '2024-01-13', status: 'rejected' },
@@ -54,21 +47,21 @@ const recentInvoices = [
   { id: 'INV-2024-005', vendor: 'Marketing Plus', amount: 22000.00, date: '2024-01-11', status: 'pending' },
 ]
 
-// டம்மி நிலுவை அனுமதிகள்
-const pendingApprovals = [
+const dummyPendingApprovals = [
   { id: 'INV-2024-006', vendor: 'Cloud Services Inc', amount: 15000.00, daysWaiting: 3 },
   { id: 'INV-2024-007', vendor: 'Design Studio', amount: 4500.00, daysWaiting: 1 },
   { id: 'INV-2024-008', vendor: 'Logistics Co', amount: 9800.00, daysWaiting: 5 },
 ]
 
-// நிலைக்கு வண்ணம் மற்றும் label
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; text: string; label: string }> = {
-    pending:  { bg: 'bg-amber-100',  text: 'text-amber-700',  label: 'Pending' },
-    approved: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Approved' },
-    rejected: { bg: 'bg-red-100',    text: 'text-red-700',    label: 'Rejected' },
+    pending:    { bg: 'bg-amber-100',   text: 'text-amber-700',   label: 'Pending' },
+    approved:   { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Approved' },
+    rejected:   { bg: 'bg-red-100',     text: 'text-red-700',     label: 'Rejected' },
+    processing: { bg: 'bg-blue-100',    text: 'text-blue-700',    label: 'Processing' },
+    failed:     { bg: 'bg-red-100',     text: 'text-red-700',     label: 'Failed' },
   }
-  const s = map[status] ?? map['pending']
+  const s = map[status.toLowerCase()] ?? map['pending']
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>
       {s.label}
@@ -76,7 +69,6 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-// KPI card component
 function KpiCard({
   title, value, icon: Icon, color, subtitle
 }: {
@@ -101,46 +93,87 @@ function KpiCard({
 }
 
 export default function DashboardPage() {
-  // டாஷ்போர்ட் API அழைப்பு (இப்போது dummy data பயன்படுத்துகிறோம்)
-  // const { data } = useQuery({ queryKey: ['dashboard'], queryFn: fetchDashboard })
+  const { companyId } = useAuth()
+
+  const { data, isLoading } = useQuery<DashboardData>({
+    queryKey: ['dashboard', companyId],
+    queryFn: () => dashboardService.getDashboard(companyId!),
+    enabled: !!companyId,
+  })
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+
+  // API → UI mapping with dummy fallback
+  const kpis = {
+    totalInvoices:   data?.totalInvoices   ?? dummyKpis.totalInvoices,
+    pendingApproval: data?.pendingInvoices  ?? dummyKpis.pendingApproval,
+    approved:        data?.approvedInvoices ?? dummyKpis.approved,
+    rejected:        data?.failedInvoices   ?? dummyKpis.rejected,
+    totalSpend:      data?.totalSpend       ?? dummyKpis.totalSpend,
+  }
+
+  const chartData = data?.monthlyBreakdown?.map(m => ({
+    month: m.monthName,
+    amount: m.totalAmount,
+  })) ?? spendTrendData
+
+  const statusData = [
+    { name: 'Approved', value: kpis.approved, color: '#10b981' },
+    { name: 'Pending',  value: kpis.pendingApproval, color: '#f59e0b' },
+    { name: 'Rejected', value: kpis.rejected, color: '#ef4444' },
+  ]
+
+  const invoices = data?.recentInvoices?.map(inv => ({
+    id:     inv.id,
+    vendor: inv.vendorName ?? '—',
+    amount: inv.totalAmount ?? 0,
+    date:   inv.createdAt.split('T')[0],
+    status: inv.status,
+  })) ?? dummyRecentInvoices
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       {/* பக்கம் தலைப்பு */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Welcome back! Here's what's happening with your invoices.</p>
+        <p className="text-sm text-gray-500 mt-1">Welcome back! Here&apos;s what&apos;s happening with your invoices.</p>
       </div>
 
       {/* KPI அட்டைகள் */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard
           title="Total Invoices"
-          value={dummyKpis.totalInvoices.toLocaleString()}
+          value={kpis.totalInvoices.toLocaleString()}
           icon={FileText}
           color="bg-blue-500"
           subtitle="All time"
         />
         <KpiCard
           title="Pending Approval"
-          value={dummyKpis.pendingApproval}
+          value={kpis.pendingApproval}
           icon={Clock}
           color="bg-amber-500"
           subtitle="Requires action"
         />
         <KpiCard
           title="Approved"
-          value={dummyKpis.approved.toLocaleString()}
+          value={kpis.approved.toLocaleString()}
           icon={CheckCircle}
           color="bg-emerald-500"
           subtitle="This year"
         />
         <KpiCard
           title="Total Spend"
-          value={formatCurrency(dummyKpis.totalSpend)}
+          value={formatCurrency(kpis.totalSpend)}
           icon={TrendingUp}
           color="bg-purple-500"
           subtitle="This year"
@@ -149,11 +182,11 @@ export default function DashboardPage() {
 
       {/* விளக்கப்படங்கள் வரிசை */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* ஸ்பெண்ட் ட்ரெண்ட் விளக்கப்படம் */}
+        {/* Spend Trend Chart */}
         <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Spend Trend</h2>
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={spendTrendData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+            <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -163,7 +196,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-             <Tooltip formatter={(value) => [formatCurrency(Number(value)), 'Spend']} />
+              <Tooltip formatter={(value) => [formatCurrency(Number(value)), 'Spend']} />
               <Area
                 type="monotone"
                 dataKey="amount"
@@ -175,7 +208,7 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* இன்வாய்ஸ் நிலை டோனட் விளக்கப்படம் */}
+        {/* Invoice Status Donut */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Invoice Status</h2>
           <ResponsiveContainer width="100%" height={200}>
@@ -196,7 +229,6 @@ export default function DashboardPage() {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
-          {/* நிலை விளக்கம் */}
           <div className="space-y-2 mt-2">
             {statusData.map((item) => (
               <div key={item.name} className="flex items-center justify-between text-sm">
@@ -211,9 +243,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* கீழ் பகுதி: சமீபத்திய இன்வாய்ஸ்கள் + நிலுவை அனுமதிகள் */}
+      {/* Recent Invoices + Pending Approvals */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* சமீபத்திய இன்வாய்ஸ்கள் அட்டவணை */}
+        {/* Recent Invoices Table */}
         <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200">
           <div className="flex items-center justify-between p-6 border-b border-gray-100">
             <h2 className="text-base font-semibold text-gray-900">Recent Invoices</h2>
@@ -234,7 +266,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {recentInvoices.map((inv) => (
+                {invoices.map((inv) => (
                   <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 font-medium text-blue-600">{inv.id}</td>
                     <td className="px-6 py-4 text-gray-700">{inv.vendor}</td>
@@ -253,7 +285,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* நிலுவை அனுமதிகள் */}
+        {/* Pending Approvals */}
         <div className="bg-white rounded-xl border border-gray-200">
           <div className="flex items-center justify-between p-6 border-b border-gray-100">
             <h2 className="text-base font-semibold text-gray-900">Pending Approvals</h2>
@@ -262,7 +294,7 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {pendingApprovals.map((item) => (
+            {dummyPendingApprovals.map((item) => (
               <div key={item.id} className="p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-start justify-between gap-2">
                   <div>
