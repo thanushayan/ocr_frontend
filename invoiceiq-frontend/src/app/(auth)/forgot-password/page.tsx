@@ -196,7 +196,9 @@ export default function ForgotPasswordPage() {
 
           {/* Open email app button */}
           <a
-            href="mailto:"
+            href="https://mail.google.com"
+            target="_blank"
+            rel="noopener noreferrer"
             className="w-full flex items-center justify-center gap-2 h-11 border-2 border-blue-600 text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors"
           >
             <ExternalLink size={16} /> Open email app
