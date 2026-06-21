@@ -2,36 +2,33 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import {
   ArrowLeft, ArrowRight, CloudUpload, FileText,
   CheckCircle, AlertTriangle, Info, Send, Save,
-  Layers, Edit2, X, Check
+  Layers, X, Check
 } from 'lucide-react'
+import { useAuth } from '../../../hooks/useAuth'
+import { invoiceService } from '../../../services/invoice.service'
 
-// ── OCR processing steps ──
 const OCR_STEPS = [
-  { msg: 'Uploading file…',                     pct: 15 },
-  { msg: 'Processing with GCP Vision API…',     pct: 38 },
-  { msg: 'Extracting structured fields…',       pct: 64 },
-  { msg: 'Validating against vendor records…',  pct: 86 },
-  { msg: 'Finalising results…',                 pct: 98 },
+  { msg: 'Uploading file…',                    pct: 15 },
+  { msg: 'Processing with GCP Vision API…',    pct: 38 },
+  { msg: 'Extracting structured fields…',      pct: 64 },
+  { msg: 'Validating against vendor records…', pct: 86 },
+  { msg: 'Finalising results…',                pct: 98 },
 ]
 
-// ── OCR extracted fields ──
-const OCR_FIELDS = [
-  { label: 'Vendor name',    value: 'Northstar Supplies Ltd', confidence: 94, mono: false },
-  { label: 'Invoice number', value: 'INV-2024-0892',          confidence: 97, mono: true  },
-  { label: 'Invoice date',   value: '12 Jun 2026',            confidence: 99, mono: false },
-  { label: 'Due date',       value: '26 Jun 2026',            confidence: 88, mono: false },
-  { label: 'Currency',       value: 'GBP',                    confidence: 85, mono: false },
-  { label: 'Subtotal',       value: '£21,930.00',             confidence: 99, mono: true  },
-  { label: 'Tax (20%)',      value: '£4,386.00',              confidence: 72, mono: true  },
-  { label: 'Total amount',   value: '£26,316.00',             confidence: 99, mono: true  },
-  { label: 'PO reference',   value: 'PO-2026-0047',           confidence: 48, mono: true  },
-]
-
-// ── Step indicator ──
 const STEPS = ['Upload', 'OCR Processing', 'Review', 'Submit']
+
+interface OcrField { label: string; value: string; confidence: number; mono?: boolean }
+interface SummaryData {
+  vendor: string; invoiceNumber: string; invoiceDate: string
+  dueDate: string; subtotal: string; tax: string; total: string
+}
+
+const BACKEND_URL = 'https://localhost:7007'
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -43,7 +40,6 @@ function StepIndicator({ current }: { current: number }) {
         return (
           <React.Fragment key={n}>
             <div className="flex flex-col items-center gap-2">
-              {/* Circle */}
               <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 text-sm font-bold transition-all ${
                 done   ? 'bg-emerald-500 border-emerald-500 text-white' :
                 active ? 'bg-blue-600 border-blue-600 text-white' :
@@ -51,16 +47,11 @@ function StepIndicator({ current }: { current: number }) {
               }`}>
                 {done ? <Check className="w-4 h-4" strokeWidth={3} /> : n}
               </div>
-              {/* Label */}
               <span className={`text-xs font-semibold whitespace-nowrap ${
                 active ? 'text-blue-700 font-bold' :
-                done   ? 'text-gray-600' :
-                         'text-gray-400'
-              }`}>
-                {label}
-              </span>
+                done   ? 'text-gray-600' : 'text-gray-400'
+              }`}>{label}</span>
             </div>
-            {/* Connector line */}
             {i < STEPS.length - 1 && (
               <div className={`w-24 h-0.5 mx-2 mb-6 rounded transition-all ${done ? 'bg-emerald-500' : 'bg-gray-200'}`} />
             )}
@@ -74,104 +65,66 @@ function StepIndicator({ current }: { current: number }) {
 // ════════════════════════════════════════
 // STEP 1: Upload
 // ════════════════════════════════════════
-interface FileInfo {
-  name: string
-  size: string
-}
+function StepUpload({ onNext }: { onNext: (file: File) => void }) {
+  const [dragging, setDragging] = useState(false)
+  const [file, setFile]         = useState<File | null>(null)
+  const inputRef                = useRef<HTMLInputElement>(null)
 
-function StepUpload({ onNext }: { onNext: () => void }) {
-  const [dragging, setDragging]   = useState(false)
-  const [file, setFile]           = useState<FileInfo | null>(null)
-  const inputRef                  = useRef<HTMLInputElement>(null)
-
-  // Drag & Drop handlers
-  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragging(true) }
-  const handleDragLeave = () => setDragging(false)
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragging(false)
-    const f = e.dataTransfer.files[0]
-    if (f) setFile({ name: f.name, size: `${(f.size / 1024 / 1024).toFixed(1)} MB` })
+  const handleDragOver   = (e: React.DragEvent) => { e.preventDefault(); setDragging(true) }
+  const handleDragLeave  = () => setDragging(false)
+  const handleDrop       = (e: React.DragEvent) => {
+    e.preventDefault(); setDragging(false)
+    const f = e.dataTransfer.files[0]; if (f) setFile(f)
   }
-
-  // File input change
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]
-    if (f) setFile({ name: f.name, size: `${(f.size / 1024 / 1024).toFixed(1)} MB` })
+    const f = e.target.files?.[0]; if (f) setFile(f)
   }
+
+  const fileSize = file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : ''
 
   return (
     <div className="space-y-4">
-      {/* Drop zone */}
       {!file ? (
         <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
           onClick={() => inputRef.current?.click()}
           className={`border-2 border-dashed rounded-2xl p-14 text-center cursor-pointer transition-all ${
-            dragging
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50'
+            dragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50'
           }`}
         >
-          {/* Hidden file input */}
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png,.tiff"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-          {/* Icon */}
-          <div className={`w-18 h-18 rounded-full flex items-center justify-center mx-auto mb-5 ${
-            dragging ? 'bg-blue-100' : 'bg-gray-100'
-          }`}
-            style={{ width: 72, height: 72 }}
-          >
+          <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.tiff" className="hidden" onChange={handleFileChange} />
+          <div className={`rounded-full flex items-center justify-center mx-auto mb-5 ${dragging ? 'bg-blue-100' : 'bg-gray-100'}`} style={{ width: 72, height: 72 }}>
             <CloudUpload className={`w-9 h-9 ${dragging ? 'text-blue-600' : 'text-gray-400'}`} />
           </div>
           <p className="text-lg font-semibold text-gray-800 mb-2">
-            Drop your invoice here{' '}
-            <span className="text-blue-600">or click to browse</span>
+            Drop your invoice here <span className="text-blue-600">or click to browse</span>
           </p>
-          <p className="text-sm text-gray-500 mb-5">
-            Supports PDF, JPG, PNG, TIFF — maximum 10 MB
-          </p>
-          {/* File type chips */}
+          <p className="text-sm text-gray-500 mb-5">Supports PDF, JPG, PNG, TIFF — maximum 10 MB</p>
           <div className="flex gap-2 justify-center">
             {['PDF', 'JPG', 'PNG', 'TIFF'].map((f) => (
-              <span key={f} className="px-3 py-1 bg-gray-100 border border-gray-200 rounded text-xs font-bold text-gray-600 tracking-wide">
-                {f}
-              </span>
+              <span key={f} className="px-3 py-1 bg-gray-100 border border-gray-200 rounded text-xs font-bold text-gray-600 tracking-wide">{f}</span>
             ))}
           </div>
         </div>
       ) : (
-        /* File selected state */
         <div className="border border-gray-200 rounded-2xl bg-white p-7 flex items-center gap-5">
-          {/* PDF icon */}
           <div className="w-16 h-20 rounded-lg bg-blue-50 border-2 border-blue-200 flex flex-col items-center justify-center flex-shrink-0 relative">
             <FileText className="w-8 h-8 text-blue-600" />
-            <span className="absolute bottom-1.5 text-[9px] font-black text-blue-700 tracking-widest">PDF</span>
+            <span className="absolute bottom-1.5 text-[9px] font-black text-blue-700 tracking-widest">FILE</span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-gray-900 mb-1">{file.name}</p>
-            <p className="text-xs text-gray-400 mb-3">{file.size} · PDF Document</p>
+            <p className="text-xs text-gray-400 mb-3">{fileSize}</p>
             <span className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-600">
               <CheckCircle className="w-4 h-4" /> Ready to process
             </span>
           </div>
-          <button
-            onClick={() => setFile(null)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
+          <button onClick={() => setFile(null)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
             <X className="w-4 h-4" /> Remove
           </button>
         </div>
       )}
 
-      {/* Bulk upload hint */}
       <div className="flex items-center gap-3 px-4 py-3.5 border border-gray-200 rounded-lg bg-white">
         <Layers className="w-5 h-5 text-gray-400 flex-shrink-0" />
         <div className="flex-1 text-sm">
@@ -183,11 +136,10 @@ function StepUpload({ onNext }: { onNext: () => void }) {
         </button>
       </div>
 
-      {/* Next button */}
       <div className="flex justify-end pt-2">
         <button
           disabled={!file}
-          onClick={onNext}
+          onClick={() => file && onNext(file)}
           className="inline-flex items-center gap-2 h-11 px-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
         >
           Upload & Process OCR <ArrowRight className="w-4 h-4" />
@@ -198,46 +150,81 @@ function StepUpload({ onNext }: { onNext: () => void }) {
 }
 
 // ════════════════════════════════════════
-// STEP 2: OCR Processing (auto-advance)
+// STEP 2: OCR Processing
 // ════════════════════════════════════════
-function StepProcessing({ onNext }: { onNext: () => void }) {
+function StepProcessing({ file, companyId, onNext }: {
+  file: File
+  companyId: string
+  onNext: (invoiceId: string, fileUrl: string) => void
+}) {
   const [stepIdx, setStepIdx] = useState(0)
   const [pct, setPct]         = useState(0)
+  const [error, setError]     = useState('')
 
-  // OCR steps-ஐ auto animate பண்ணு
   useEffect(() => {
-    let si = 0
-    const advance = () => {
-      if (si >= OCR_STEPS.length) { setTimeout(onNext, 800); return }
-      setStepIdx(si)
-      const target = OCR_STEPS[si].pct
-      const prev   = si === 0 ? 0 : OCR_STEPS[si - 1].pct
-      let cur = prev
+    let cancelled = false
+
+    const animateTo = (from: number, to: number, cb: () => void) => {
+      let cur = from
       const tick = setInterval(() => {
-        cur = Math.min(cur + 2, target)
+        cur = Math.min(cur + 2, to)
         setPct(cur)
-        if (cur >= target) { clearInterval(tick); si++; setTimeout(advance, 500) }
+        if (cur >= to) { clearInterval(tick); cb() }
       }, 30)
     }
-    advance()
+
+    const run = async () => {
+      try {
+        animateTo(0, 15, () => {})
+        const uploadResult = await invoiceService.upload(companyId, file)
+        const invoiceId = uploadResult?.invoice?.id ?? uploadResult?.Invoice?.id ?? uploadResult?.id
+        const fileUrl   = uploadResult?.invoice?.fileUrl ?? uploadResult?.file?.fileUrl ?? ''
+        if (!invoiceId) throw new Error('Upload failed — no invoice ID returned')
+
+        setPct(38)
+        setStepIdx(1)
+
+        await invoiceService.triggerOcr(invoiceId)
+        setStepIdx(2)
+
+        animateTo(38, 98, () => {
+          if (!cancelled) { setStepIdx(4); setTimeout(() => onNext(invoiceId, fileUrl), 800) }
+        })
+      } catch (err: unknown) {
+        const e = err as { response?: { data?: { message?: string } } }
+        setError(e?.response?.data?.message ?? 'Upload failed. Please try again.')
+      }
+    }
+
+    run()
+    return () => { cancelled = true }
   }, []) // eslint-disable-line
 
-  const current = OCR_STEPS[Math.min(stepIdx, OCR_STEPS.length - 1)]
-  // SVG circle circumference
   const r = 52
   const circumference = 2 * Math.PI * r
 
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+          <AlertTriangle className="w-8 h-8 text-red-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Upload failed</h2>
+        <p className="text-sm text-red-500">{error}</p>
+        <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold">
+          Try again
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="text-center py-12">
-      {/* Circular progress */}
       <div className="relative w-32 h-32 mx-auto mb-8">
         <svg viewBox="0 0 120 120" className="absolute inset-0 w-full h-full -rotate-90">
           <circle cx="60" cy="60" r={r} fill="none" stroke="#e5e7eb" strokeWidth="8" />
-          <circle
-            cx="60" cy="60" r={r}
-            fill="none" stroke="#2563eb" strokeWidth="8" strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={circumference * (1 - pct / 100)}
+          <circle cx="60" cy="60" r={r} fill="none" stroke="#2563eb" strokeWidth="8" strokeLinecap="round"
+            strokeDasharray={circumference} strokeDashoffset={circumference * (1 - pct / 100)}
             style={{ transition: 'stroke-dashoffset 0.15s ease' }}
           />
         </svg>
@@ -245,41 +232,23 @@ function StepProcessing({ onNext }: { onNext: () => void }) {
           <span className="text-2xl font-bold font-mono text-blue-700 tabular-nums">{pct}%</span>
         </div>
       </div>
-
       <h2 className="text-xl font-bold text-gray-900 mb-2">Processing your invoice</h2>
-      <p className="text-sm text-gray-500 mb-8 min-h-[20px]">{current?.msg}</p>
-
-      {/* Step log */}
+      <p className="text-sm text-gray-500 mb-8 min-h-[20px]">{OCR_STEPS[Math.min(stepIdx, OCR_STEPS.length - 1)]?.msg}</p>
       <div className="flex flex-col gap-3 text-left max-w-md mx-auto">
         {OCR_STEPS.map((s, i) => {
-          const done   = i < stepIdx
-          const active = i === stepIdx
+          const done = i < stepIdx; const active = i === stepIdx
           return (
-            <div
-              key={i}
-              className={`flex items-center gap-3.5 px-4 py-3 rounded-lg border transition-all ${
-                active ? 'border-blue-200 bg-blue-50' :
-                done   ? 'border-emerald-200 bg-emerald-50' :
-                         'border-gray-200 bg-white'
-              }`}
-            >
-              {/* Status icon */}
+            <div key={i} className={`flex items-center gap-3.5 px-4 py-3 rounded-lg border transition-all ${
+              active ? 'border-blue-200 bg-blue-50' : done ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'
+            }`}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                done   ? 'bg-emerald-500' :
-                active ? 'bg-blue-600' :
-                         'bg-gray-200'
+                done ? 'bg-emerald-500' : active ? 'bg-blue-600' : 'bg-gray-200'
               }`}>
                 {done   && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
                 {active && <div className="w-3.5 h-3.5 rounded-full border-2 border-white/50 border-t-white animate-spin" />}
                 {!done && !active && <span className="text-xs text-gray-400">·</span>}
               </div>
-              <span className={`text-sm flex-1 ${
-                active ? 'font-semibold text-blue-700' :
-                done   ? 'text-emerald-700' :
-                         'text-gray-400'
-              }`}>
-                {s.msg}
-              </span>
+              <span className={`text-sm flex-1 ${active ? 'font-semibold text-blue-700' : done ? 'text-emerald-700' : 'text-gray-400'}`}>{s.msg}</span>
               {done && <span className="text-xs font-bold text-emerald-600">Done</span>}
             </div>
           )
@@ -292,49 +261,38 @@ function StepProcessing({ onNext }: { onNext: () => void }) {
 // ════════════════════════════════════════
 // STEP 3: Review
 // ════════════════════════════════════════
-
-// Confidence badge
 function ConfBadge({ c }: { c: number }) {
   const s = c > 90
-    ? { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'High' }
+    ? { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500' }
     : c >= 70
-    ? { bg: 'bg-amber-50',   border: 'border-amber-200',   text: 'text-amber-700',   dot: 'bg-amber-500',   label: 'Medium' }
-    : { bg: 'bg-red-50',     border: 'border-red-200',     text: 'text-red-700',     dot: 'bg-red-500',     label: 'Low' }
+    ? { bg: 'bg-amber-50',   border: 'border-amber-200',   text: 'text-amber-700',   dot: 'bg-amber-500'   }
+    : { bg: 'bg-red-50',     border: 'border-red-200',     text: 'text-red-700',     dot: 'bg-red-500'     }
+  const label = c > 90 ? 'High' : c >= 70 ? 'Medium' : 'Low'
   return (
     <span className={`inline-flex items-center gap-1 h-5 px-2 rounded-full border text-xs font-bold ${s.bg} ${s.border} ${s.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-      {s.label} · {c}%
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} /> {label} · {c}%
     </span>
   )
 }
 
-// Editable field with confidence
-function EditableField({
-  label, value: initVal, confidence, mono = false
-}: {
+function EditableField({ label, value: initVal, confidence, mono = false }: {
   label: string; value: string; confidence: number; mono?: boolean
 }) {
-  const [val, setVal]       = useState(initVal)
+  const [val, setVal]         = useState(initVal)
   const [focused, setFocused] = useState(false)
   const low = confidence < 70
-
   return (
     <div className="group flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
         <label className={`text-sm font-semibold ${low ? 'text-red-600' : 'text-gray-600'}`}>
-          {label}
-          {low && <AlertTriangle className="inline w-3.5 h-3.5 ml-1 -mt-0.5" />}
+          {label}{low && <AlertTriangle className="inline w-3.5 h-3.5 ml-1 -mt-0.5" />}
         </label>
         <ConfBadge c={confidence} />
       </div>
       <input
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        className={`w-full h-10 px-3 border rounded-lg text-sm outline-none transition-all ${
-          mono ? 'font-mono text-xs' : ''
-        } ${
+        value={val} onChange={(e) => setVal(e.target.value)}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        className={`w-full h-10 px-3 border rounded-lg text-sm outline-none transition-all ${mono ? 'font-mono text-xs' : ''} ${
           focused ? 'border-blue-500 ring-2 ring-blue-100 bg-white' :
           low     ? 'border-red-400 bg-red-50 ring-2 ring-red-50' :
                     'border-gray-300 bg-gray-50 hover:border-gray-400'
@@ -349,102 +307,144 @@ function EditableField({
   )
 }
 
-// Line items for document preview
-const PREVIEW_ITEMS = [
-  { desc: 'OCR Platform licence (annual)', qty: 1, unit: 14400 },
-  { desc: 'Compliance add-on (×3 users)',  qty: 3, unit: 1500  },
-  { desc: 'Implementation & onboarding',   qty: 1, unit: 2530  },
-  { desc: 'Priority support SLA',          qty: 1, unit: 1500  },
-]
-const fmtGBP = (n: number) => '£' + n.toLocaleString('en-GB', { minimumFractionDigits: 2 })
+const fmtCurrency = (n?: number, currency = 'GBP') => {
+  if (!n) return '—'
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(n)
+}
+const fmtDate = (d?: string) =>
+  d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
-function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
-  const subtotal = PREVIEW_ITEMS.reduce((s, r) => s + r.qty * r.unit, 0)
+const DUMMY_FIELDS: OcrField[] = [
+  { label: 'Vendor name',    value: '—',   confidence: 90, mono: false },
+  { label: 'Invoice number', value: '—',   confidence: 90, mono: true  },
+  { label: 'Invoice date',   value: '—',   confidence: 90, mono: false },
+  { label: 'Due date',       value: '—',   confidence: 90, mono: false },
+  { label: 'Currency',       value: 'GBP', confidence: 90, mono: false },
+  { label: 'Subtotal',       value: '—',   confidence: 90, mono: true  },
+  { label: 'Tax',            value: '—',   confidence: 90, mono: true  },
+  { label: 'Total amount',   value: '—',   confidence: 90, mono: true  },
+]
+
+function StepReview({ invoiceId, fileUrl, companyId, onNext, onBack }: {
+  invoiceId: string
+  fileUrl: string
+  companyId: string
+  onNext: (summary: SummaryData) => void
+  onBack: () => void
+}) {
+  const [ocrFields, setOcrFields]     = useState<OcrField[]>(DUMMY_FIELDS)
+  const [overallConf, setOverallConf] = useState(89)
+  const [isLoading, setIsLoading]     = useState(true)
+  const [imgError, setImgError]       = useState(false)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Try confidence endpoint first
+        const conf = await invoiceService.getOcrConfidence(invoiceId)
+
+        if (conf?.fields?.length) {
+          // Use confidence fields if available
+          setOcrFields(conf.fields.map((f: any) => ({
+            label:      f.fieldName ?? f.label ?? 'Field',
+            value:      String(f.value ?? f.extractedValue ?? '—'),
+            confidence: Math.round((f.confidence ?? 0.9) * 100),
+            mono:       ['invoiceNumber', 'totalAmount', 'subTotal', 'taxAmount'].includes(f.fieldName),
+          })))
+          if (conf?.overallConfidence) setOverallConf(Math.round(conf.overallConfidence * 100))
+        } else {
+          // Fallback: get invoice data directly
+          const inv = await invoiceService.getById(companyId, invoiceId)
+          setOcrFields([
+            { label: 'Vendor name',    value: (inv as any)?.extractedVendorName ?? (inv as any)?.vendorName ?? '—', confidence: 90, mono: false },
+            { label: 'Invoice number', value: (inv as any)?.invoiceNumber ?? '—',  confidence: 90, mono: true  },
+            { label: 'Invoice date',   value: fmtDate((inv as any)?.invoiceDate),  confidence: 90, mono: false },
+            { label: 'Due date',       value: fmtDate((inv as any)?.dueDate),      confidence: 90, mono: false },
+            { label: 'Currency',       value: (inv as any)?.currency ?? 'GBP',     confidence: 90, mono: false },
+            { label: 'Subtotal',       value: fmtCurrency((inv as any)?.subTotal,    (inv as any)?.currency), confidence: 90, mono: true },
+            { label: 'Tax',            value: fmtCurrency((inv as any)?.taxAmount,   (inv as any)?.currency), confidence: 90, mono: true },
+            { label: 'Total amount',   value: fmtCurrency((inv as any)?.totalAmount, (inv as any)?.currency), confidence: 90, mono: true },
+          ])
+        }
+      } catch {
+        // keep dummy fields
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
+  }, [invoiceId, companyId])
+
+  const getField = (keyword: string) =>
+    ocrFields.find(f => f.label.toLowerCase().includes(keyword.toLowerCase()))?.value ?? '—'
+
+  const lowCount  = ocrFields.filter(f => f.confidence < 70).length
+  const imageUrl  = fileUrl ? `${BACKEND_URL}${fileUrl}` : ''
+
+  const handleNext = () => onNext({
+    vendor:        getField('vendor'),
+    invoiceNumber: getField('invoice number'),
+    invoiceDate:   getField('invoice date'),
+    dueDate:       getField('due date'),
+    subtotal:      getField('subtotal'),
+    tax:           getField('tax'),
+    total:         getField('total'),
+  })
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
 
   return (
     <div className="grid grid-cols-2 gap-5">
-      {/* Left: Document preview */}
+      {/* Left: Actual uploaded invoice image */}
       <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
         <div className="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-gray-200">
           <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Document preview</span>
           <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-            <CheckCircle className="w-3.5 h-3.5" /> 89% overall confidence
+            <CheckCircle className="w-3.5 h-3.5" /> {overallConf}% overall confidence
           </span>
         </div>
-        <div className="p-5 overflow-y-auto max-h-[540px]">
-          <div className="bg-white rounded-lg shadow-md px-7 py-7 text-xs">
-            {/* Header */}
-            <div className="flex justify-between items-start mb-5">
-              <div>
-                <p className="text-sm font-bold text-gray-900">Northstar Supplies Ltd</p>
-                <p className="text-gray-400 mt-1">VAT IE6388047V</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xl font-black text-blue-700">INVOICE</p>
-                <p className="font-mono font-bold text-gray-800 mt-1">INV-2024-0892</p>
-              </div>
+        <div className="p-4 overflow-y-auto max-h-[540px]">
+          {imageUrl && !imgError ? (
+            <img
+              src={imageUrl}
+              alt="Uploaded invoice"
+              className="w-full rounded-lg shadow-md object-contain"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
+              <FileText className="w-10 h-10 text-gray-300" />
+              <span className="text-sm">Preview not available</span>
             </div>
-            {/* Meta */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-50 rounded-lg px-3 py-2.5 mb-4">
-              {[['Invoice date','12 Jun 2026'],['Due date','26 Jun 2026'],['Bill to','Northstar Finance Ltd'],['Terms','Net 14']].map(([k,v]) => (
-                <div key={k} className="flex justify-between">
-                  <span className="text-gray-400">{k}</span>
-                  <span className="font-semibold text-gray-700">{v}</span>
-                </div>
-              ))}
-            </div>
-            {/* Line items */}
-            <table className="w-full border-collapse mb-3">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  {['Description','Qty','Unit','Total'].map((h, i) => (
-                    <th key={h} className={`pb-2 text-gray-400 uppercase tracking-wider font-semibold ${i > 0 ? 'text-right' : 'text-left'}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {PREVIEW_ITEMS.map((r, i) => (
-                  <tr key={i} className="border-b border-gray-100">
-                    <td className="py-2 text-gray-600">{r.desc}</td>
-                    <td className="py-2 text-right font-mono font-semibold">{r.qty}</td>
-                    <td className="py-2 text-right font-mono">{fmtGBP(r.unit)}</td>
-                    <td className="py-2 text-right font-mono font-bold">{fmtGBP(r.qty * r.unit)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {/* Totals */}
-            {[['Subtotal', fmtGBP(subtotal), false], ['VAT (20%)', fmtGBP(subtotal * 0.2), false], ['Total', fmtGBP(subtotal * 1.2), true]].map(([k, v, bold], i) => (
-              <div key={k as string} className={`flex justify-end gap-10 py-1 ${i === 2 ? 'border-t border-gray-200 mt-1 pt-2' : ''}`}>
-                <span className={bold ? 'font-bold text-gray-900' : 'text-gray-400'}>{k}</span>
-                <span className={`font-mono w-20 text-right ${bold ? 'font-black text-sm' : 'font-semibold'}`}>{v}</span>
-              </div>
-            ))}
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Right: Editable fields */}
+      {/* Right: Editable OCR fields */}
       <div className="flex flex-col gap-3.5">
-        {/* Warning banner */}
-        <div className="flex items-center gap-2 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm font-semibold text-amber-700">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" /> 2 fields need review before submitting.
-        </div>
-
-        {/* Fields list */}
+        {lowCount > 0 && (
+          <div className="flex items-center gap-2 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm font-semibold text-amber-700">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {lowCount} field{lowCount > 1 ? 's' : ''} need review before submitting.
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-          {OCR_FIELDS.map((f) => (
+          {ocrFields.map((f) => (
             <EditableField key={f.label} {...f} />
           ))}
         </div>
-
-        {/* Actions */}
         <div className="flex gap-2.5 pt-3 border-t border-gray-100">
           <button onClick={onBack} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700 rounded-lg transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <button
-            onClick={onNext}
+            onClick={handleNext}
             className="flex-1 inline-flex items-center justify-center gap-2 h-11 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
           >
             Confirm & continue <ArrowRight className="w-4 h-4" />
@@ -458,34 +458,26 @@ function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void
 // ════════════════════════════════════════
 // STEP 4: Submit
 // ════════════════════════════════════════
-
-// Tag input component
 function TagInput({ initial }: { initial: string[] }) {
-  const [tags, setTags] = useState(initial)
+  const [tags, setTags]   = useState(initial)
   const [input, setInput] = useState('')
-
   const addTag = (e: React.KeyboardEvent) => {
     if ((e.key === 'Enter' || e.key === ',') && input.trim()) {
-      e.preventDefault()
-      setTags((t) => [...t, input.trim()])
-      setInput('')
+      e.preventDefault(); setTags(t => [...t, input.trim()]); setInput('')
     }
   }
-
   return (
     <div className="flex flex-wrap gap-1.5 p-2.5 border border-gray-300 rounded-lg bg-gray-50 min-h-[44px] items-center">
-      {tags.map((t) => (
-        <span key={t} className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-bold text-blue-700">
+      {tags.map((t, i) => (
+        <span key={`${t}-${i}`} className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-blue-50 border border-blue-200 text-xs font-bold text-blue-700">
           {t}
-          <button onClick={() => setTags((ts) => ts.filter((x) => x !== t))} className="text-blue-400 hover:text-blue-700">
+          <button onClick={() => setTags(ts => ts.filter((_, idx) => idx !== i))} className="text-blue-400 hover:text-blue-700">
             <X className="w-3 h-3" />
           </button>
         </span>
       ))}
       <input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={addTag}
+        value={input} onChange={e => setInput(e.target.value)} onKeyDown={addTag}
         placeholder={tags.length ? 'Add tag…' : 'Q2 2026, compliance…'}
         className="border-none outline-none bg-transparent text-sm text-gray-800 min-w-[80px] flex-1"
       />
@@ -493,21 +485,39 @@ function TagInput({ initial }: { initial: string[] }) {
   )
 }
 
-const SUMMARY = [
-  ['Vendor',       'Northstar Supplies Ltd'],
-  ['Invoice #',    'INV-2024-0892'],
-  ['Invoice date', '12 Jun 2026'],
-  ['Due date',     '26 Jun 2026'],
-  ['Subtotal',     '£21,930.00'],
-  ['Tax',          '£4,386.00'],
-  ['Total',        '£26,316.00'],
-]
 const MONO_KEYS = ['Subtotal', 'Tax', 'Total', 'Invoice #']
 
-function StepSubmit({ onBack }: { onBack: () => void }) {
+function StepSubmit({ invoiceId, summary, onBack }: {
+  invoiceId: string; summary: SummaryData; onBack: () => void
+}) {
+  const router            = useRouter()
+  const [loading, setLoading] = useState(false)
+
+  const SUMMARY = [
+    ['Vendor',       summary.vendor],
+    ['Invoice #',    summary.invoiceNumber],
+    ['Invoice date', summary.invoiceDate],
+    ['Due date',     summary.dueDate],
+    ['Subtotal',     summary.subtotal],
+    ['Tax',          summary.tax],
+    ['Total',        summary.total],
+  ]
+
+  const handleSubmit = async () => {
+    setLoading(true)
+    try {
+      await invoiceService.approveOcr(invoiceId)
+      toast.success('Invoice submitted successfully!')
+      router.push('/invoices')
+    } catch {
+      toast.error('Submit failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
-      {/* Summary card */}
       <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
         <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-200 bg-gray-50">
           <FileText className="w-5 h-5 text-gray-500" />
@@ -516,13 +526,9 @@ function StepSubmit({ onBack }: { onBack: () => void }) {
             <CheckCircle className="w-3.5 h-3.5" /> OCR verified
           </span>
         </div>
-        {/* Summary grid */}
         <div className="grid grid-cols-4">
           {SUMMARY.map(([k, v], i) => (
-            <div
-              key={k}
-              className={`px-5 py-3.5 ${i % 4 < 3 ? 'border-r border-gray-200' : ''} ${i < 4 ? 'border-b border-gray-200' : ''}`}
-            >
+            <div key={`${k}-${i}`} className={`px-5 py-3.5 ${i % 4 < 3 ? 'border-r border-gray-200' : ''} ${i < 4 ? 'border-b border-gray-200' : ''}`}>
               <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{k}</p>
               <p className={`text-sm font-semibold text-gray-900 ${MONO_KEYS.includes(k) ? 'font-mono' : ''}`}>{v}</p>
             </div>
@@ -530,11 +536,8 @@ function StepSubmit({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      {/* Workflow + metadata */}
       <div className="grid grid-cols-2 gap-5">
-        {/* Left: workflow + tags */}
         <div className="space-y-4">
-          {/* Workflow select */}
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-gray-600">Assign to approval workflow</label>
             <div className="relative flex items-center h-11 border border-gray-300 rounded-lg bg-gray-50 pl-3">
@@ -548,25 +551,20 @@ function StepSubmit({ onBack }: { onBack: () => void }) {
             </div>
             <p className="text-xs text-gray-400">Invoice exceeds £10,000 — high-value workflow recommended.</p>
           </div>
-
-          {/* Tags */}
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-gray-600">Tags</label>
-            <TagInput initial={['Q2 2026', 'Northstar', 'Software']} />
+            <TagInput initial={['Q2 2026']} />
             <p className="text-xs text-gray-400">Press Enter or comma to add a tag.</p>
           </div>
         </div>
-
-        {/* Right: Notes */}
         <div className="space-y-2">
           <label className="text-sm font-semibold text-gray-600">
             Notes <span className="font-normal text-gray-400">optional</span>
           </label>
           <textarea
             className="w-full min-h-[120px] border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-800 bg-gray-50 outline-none resize-y focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            defaultValue="VAT number verified against HMRC register. Line 2 quantity corrected from OCR output (1→3 user licences per contract)."
+            placeholder="Add any notes for the approver…"
           />
-          {/* Info banner */}
           <div className="flex items-center gap-2 px-3.5 py-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-gray-600">
             <Info className="w-4 h-4 text-blue-500 flex-shrink-0" />
             Approver will be notified by email once submitted.
@@ -574,7 +572,6 @@ function StepSubmit({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      {/* Action buttons */}
       <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
         <button onClick={onBack} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700 rounded-lg transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back
@@ -583,8 +580,14 @@ function StepSubmit({ onBack }: { onBack: () => void }) {
         <button className="inline-flex items-center gap-1.5 h-10 px-4 border border-gray-300 hover:bg-gray-50 text-sm font-semibold text-gray-600 rounded-lg transition-colors">
           <Save className="w-4 h-4" /> Save as draft
         </button>
-        <button className="inline-flex items-center gap-2 h-11 px-6 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">
-          <Send className="w-4 h-4" /> Save & submit invoice
+        <button
+          onClick={handleSubmit} disabled={loading}
+          className="inline-flex items-center gap-2 h-11 px-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          {loading
+            ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Submitting…</>
+            : <><Send className="w-4 h-4" /> Save & submit invoice</>
+          }
         </button>
       </div>
     </div>
@@ -595,31 +598,49 @@ function StepSubmit({ onBack }: { onBack: () => void }) {
 // Main Page
 // ════════════════════════════════════════
 export default function UploadPage() {
-  // தற்போதைய wizard step
-  const [step, setStep] = useState(1)
+  const { companyId }             = useAuth()
+  const [step, setStep]           = useState(1)
+  const [file, setFile]           = useState<File | null>(null)
+  const [invoiceId, setInvoiceId] = useState<string>('')
+  const [fileUrl, setFileUrl]     = useState<string>('')
+  const [summary, setSummary]     = useState<SummaryData>({
+    vendor: '—', invoiceNumber: '—', invoiceDate: '—',
+    dueDate: '—', subtotal: '—', tax: '—', total: '—',
+  })
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Page header */}
       <div className="flex items-center gap-3.5 pt-2 pb-0">
-        <Link
-          href="/invoices"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors"
-        >
+        <Link href="/invoices" className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors">
           <ArrowLeft className="w-5 h-5" /> Invoices
         </Link>
         <span className="text-gray-300">|</span>
         <h1 className="text-xl font-bold text-gray-900">Upload Invoice</h1>
       </div>
 
-      {/* Step indicator */}
       <StepIndicator current={step} />
 
-      {/* Step content */}
-      {step === 1 && <StepUpload     onNext={() => setStep(2)} />}
-      {step === 2 && <StepProcessing onNext={() => setStep(3)} />}
-      {step === 3 && <StepReview     onNext={() => setStep(4)} onBack={() => setStep(1)} />}
-      {step === 4 && <StepSubmit     onBack={() => setStep(3)} />}
+      {step === 1 && (
+        <StepUpload onNext={(f) => { setFile(f); setStep(2) }} />
+      )}
+      {step === 2 && file && companyId && (
+        <StepProcessing
+          file={file} companyId={companyId}
+          onNext={(id, url) => { setInvoiceId(id); setFileUrl(url); setStep(3) }}
+        />
+      )}
+      {step === 3 && invoiceId && (
+        <StepReview
+          invoiceId={invoiceId}
+          fileUrl={fileUrl}
+          companyId={companyId!}
+          onNext={(s) => { setSummary(s); setStep(4) }}
+          onBack={() => setStep(1)}
+        />
+      )}
+      {step === 4 && invoiceId && (
+        <StepSubmit invoiceId={invoiceId} summary={summary} onBack={() => setStep(3)} />
+      )}
     </div>
   )
 }

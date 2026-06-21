@@ -15,14 +15,14 @@ import { PagedInvoices } from '../../../types/invoice.types'
 
 // Dummy fallback data
 const DUMMY_ROWS = [
-  { num: 'INV-2026-1042', vendor: 'Northstar Supplies',   amount: '£18,420.00', status: 'Processing',  due: '24 Jun 2026', uploaded: '17 Jun 2026', overdue: false },
-  { num: 'INV-2026-1041', vendor: 'Acme Cloud Services',  amount: '£4,280.00',  status: 'Pending',     due: '20 Jun 2026', uploaded: '17 Jun 2026', overdue: false },
-  { num: 'INV-2026-1040', vendor: 'Blue River Logistics', amount: '£7,120.00',  status: 'Rejected',    due: '12 Jun 2026', uploaded: '16 Jun 2026', overdue: true  },
-  { num: 'INV-2026-1039', vendor: 'Data Processing Inc.', amount: '£1,950.00',  status: 'Approved',    due: '28 Jun 2026', uploaded: '16 Jun 2026', overdue: false },
-  { num: 'INV-2026-1038', vendor: 'Harbour Facilities',   amount: '£11,340.00', status: 'Pending',     due: '10 Jun 2026', uploaded: '15 Jun 2026', overdue: true  },
-  { num: 'INV-2026-1037', vendor: 'Orbit Analytics',      amount: '£8,650.00',  status: 'Paid',        due: '05 Jun 2026', uploaded: '14 Jun 2026', overdue: false },
-  { num: 'INV-2026-1036', vendor: 'FinOps Advisory',      amount: '£21,780.00', status: 'Approved',    due: '30 Jun 2026', uploaded: '14 Jun 2026', overdue: false },
-  { num: 'INV-2026-1035', vendor: 'Evergreen Office',     amount: '£2,180.00',  status: 'Paid',        due: '02 Jun 2026', uploaded: '13 Jun 2026', overdue: false },
+  { id: 'dummy-1', num: 'INV-2026-1042', vendor: 'Northstar Supplies',   amount: '£18,420.00', status: 'Processing',  due: '24 Jun 2026', uploaded: '17 Jun 2026', overdue: false },
+  { id: 'dummy-2', num: 'INV-2026-1041', vendor: 'Acme Cloud Services',  amount: '£4,280.00',  status: 'Pending',     due: '20 Jun 2026', uploaded: '17 Jun 2026', overdue: false },
+  { id: 'dummy-3', num: 'INV-2026-1040', vendor: 'Blue River Logistics', amount: '£7,120.00',  status: 'Rejected',    due: '12 Jun 2026', uploaded: '16 Jun 2026', overdue: true  },
+  { id: 'dummy-4', num: 'INV-2026-1039', vendor: 'Data Processing Inc.', amount: '£1,950.00',  status: 'Approved',    due: '28 Jun 2026', uploaded: '16 Jun 2026', overdue: false },
+  { id: 'dummy-5', num: 'INV-2026-1038', vendor: 'Harbour Facilities',   amount: '£11,340.00', status: 'Pending',     due: '10 Jun 2026', uploaded: '15 Jun 2026', overdue: true  },
+  { id: 'dummy-6', num: 'INV-2026-1037', vendor: 'Orbit Analytics',      amount: '£8,650.00',  status: 'Paid',        due: '05 Jun 2026', uploaded: '14 Jun 2026', overdue: false },
+  { id: 'dummy-7', num: 'INV-2026-1036', vendor: 'FinOps Advisory',      amount: '£21,780.00', status: 'Approved',    due: '30 Jun 2026', uploaded: '14 Jun 2026', overdue: false },
+  { id: 'dummy-8', num: 'INV-2026-1035', vendor: 'Evergreen Office',     amount: '£2,180.00',  status: 'Paid',        due: '02 Jun 2026', uploaded: '13 Jun 2026', overdue: false },
 ]
 
 const STATUS_STYLES: Record<string, { dot: string; bg: string; border: string; text: string }> = {
@@ -106,7 +106,8 @@ export default function InvoicesPage() {
 
   // API data → table rows, dummy fallback
   const rows = data?.items?.map(inv => ({
-    num:      inv.invoiceNumber ?? inv.id,
+    id:       inv.id,
+    num:      inv.invoiceNumber ?? '—',
     vendor:   inv.vendorName   ?? '—',
     amount:   formatAmount(inv.totalAmount, inv.currency),
     status:   inv.status,
@@ -221,7 +222,7 @@ export default function InvoicesPage() {
                 rows.map((row) => {
                   const isSelected = selected.has(row.num)
                   return (
-                    <tr key={row.num} className={`transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+<tr key={row.id ?? row.num} className={`transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
                       <td className="px-4 py-3">
                         <Checkbox checked={isSelected} onClick={() => toggle(row.num)} />
                       </td>
@@ -237,7 +238,7 @@ export default function InvoicesPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => router.push(`/invoices/${row.num}`)}
+onClick={() => router.push(`/invoices/${row.id ?? row.num}`)}
                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             title="View"
                           >
