@@ -219,7 +219,7 @@ export default function VendorsPage() {
   const filtered = vendors.filter((v) => {
     const q = search.toLowerCase()
     const matchQ = !q || v.name.toLowerCase().includes(q) || (v.email ?? '').toLowerCase().includes(q)
-    const isActive = v.isActive ?? v.status === 'Active' ?? true
+    const isActive = v.isActive ?? (v.status != null ? v.status === 'Active' : true)
     const matchS = statusFilter === 'All' || (statusFilter === 'Active' ? isActive : !isActive)
     return matchQ && matchS
   })
