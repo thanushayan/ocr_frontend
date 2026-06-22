@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import vendorApi from '../../../lib/vendorApi'
+import vendorApi from '../../lib/vendorApi'
 
 function GoogleIcon() {
   return (
@@ -83,7 +83,7 @@ export default function VendorLoginPage() {
     setError('')
     try {
       // POST /api/vendor-portal/auth/login
-    const res = await vendorApi.post('/api/vendor-portal/login', { email, password })
+      const res = await vendorApi.post('/api/vendor-portal/auth/login', { email, password })
       localStorage.setItem('vendorToken', res.data.token)
       localStorage.setItem('vendorUser', JSON.stringify(res.data.user))
       setVendorName(res.data.user.fullName)
