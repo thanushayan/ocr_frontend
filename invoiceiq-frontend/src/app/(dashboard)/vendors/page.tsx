@@ -362,19 +362,15 @@ export default function VendorsPage() {
                         <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View vendor">
                           <Eye className="w-4 h-4" />
                         </button>
-                        {!portalOn && (
-                          <button
-                            onClick={() => inviteMutation.mutate(v.id)}
-                            disabled={alreadyInvited || inviteMutation.isPending}
-                            className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-xs font-semibold transition-colors disabled:opacity-60 ${
-                              alreadyInvited
-                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
-                            }`}
-                          >
-                            {alreadyInvited ? <><Check className="w-3 h-3" /> Invited</> : <><Send className="w-3 h-3" /> Invite</>}
-                          </button>
-                        )}
+                       {!portalOn && (
+  <button
+    disabled
+    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-xs font-semibold bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+    title="Portal invite coming soon"
+  >
+    <Send className="w-3 h-3" /> Invite
+  </button>
+)}
                         {portalOn && (
                           <span className="inline-flex items-center h-7 px-2.5 rounded-lg bg-teal-50 border border-teal-200 text-xs font-semibold text-teal-700">
                             Portal active
