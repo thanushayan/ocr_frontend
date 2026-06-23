@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../../hooks/useAuth'
-import api from '../../../lib/axios'
+import { settingsService } from '../../../services/settings.service'
 
 type TabId = 'general' | 'currency' | 'language' | 'xero' | 'notifications' | 'security'
 
@@ -16,7 +16,7 @@ const SETTINGS_NAV: { id: TabId; label: string; icon: string }[] = [
   { id: 'security',      label: 'Security',          icon: '🔒' },
 ]
 
-// ── Form primitives (unchanged) ───────────────────────────────────────────────
+// ── Primitives ────────────────────────────────────────────────────────────────
 
 function SectionHeader({ title, desc }: { title: string; desc?: string }) {
   return (
@@ -101,84 +101,56 @@ function Toast({ msg, onDone }: { msg: string; onDone: () => void }) {
   )
 }
 
-// ── Tab 1: General — GET/PATCH /api/companies/{companyId} ─────────────────────
+// ── Tab 1: General — read-only (no PATCH endpoint exists) ─────────────────────
 
-function GeneralTab({ onSave }: { onSave: (msg?: string) => void }) {
+function GeneralTab({ onSave: _ }: { onSave: (msg?: string) => void }) {
   const { companyId } = useAuth()
-  const queryClient = useQueryClient()
 
-  const { data: company } = useQuery({
+  const { data: company, isLoading } = useQuery({
     queryKey: ['company', companyId],
-    queryFn: () => api.get(`/api/companies/${companyId}`).then(r => r.data),
+    queryFn: () => settingsService.getCompany(companyId!),
     enabled: !!companyId,
-  })
-
-  const [name, setName]         = useState('')
-  const [industry, setIndustry] = useState('Financial Services')
-  const [tz, setTz]             = useState('Europe/London')
-  const [dateFormat, setDateFormat] = useState('DD/MM/YYYY')
-  const [logoUploaded, setLogoUploaded] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  // API data load ஆனவுடன் fields-ஐ populate செய்
-  useEffect(() => {
-    if (company) {
-      setName(company.name ?? '')
-    }
-  }, [company])
-
-  const saveMutation = useMutation({
-    mutationFn: () => api.patch(`/api/companies/${companyId}`, { name }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['company', companyId] })
-      onSave('Company profile saved.')
-    },
   })
 
   return (
     <div className="flex flex-col gap-7">
-      <SectionHeader title="Company profile" desc="Update your organisation's basic information and branding." />
-      <div className="flex flex-col gap-2.5">
-        <label className="text-xs font-semibold text-gray-600">Company logo</label>
-        <div className="flex items-center gap-5">
-          <div className="w-20 h-20 rounded-xl border border-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden cursor-pointer"
-            style={{ background: logoUploaded ? 'linear-gradient(135deg,#8b5cf6,#6d28d9)' : '#f9fafb' }}
-            onClick={() => fileRef.current?.click()}>
-            {logoUploaded ? <span className="text-3xl font-extrabold text-white">N</span> : <span className="text-3xl text-gray-300">🏢</span>}
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={() => setLogoUploaded(true)} />
-          <div className="flex flex-col gap-2">
-            <button onClick={() => fileRef.current?.click()}
-              className="inline-flex items-center gap-2 h-9 px-4 border border-gray-200 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-              ⬆ {logoUploaded ? 'Change logo' : 'Upload logo'}
-            </button>
-            <span className="text-xs text-gray-400">PNG, JPG or SVG. Max 2 MB. Recommended 256×256px.</span>
-            {logoUploaded && (
-              <button onClick={() => setLogoUploaded(false)} className="inline-flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-600">
-                🗑 Remove logo
-              </button>
-            )}
-          </div>
+      <SectionHeader title="Company profile" desc="Contact support to update your company details." />
+      {isLoading ? (
+        <div className="grid grid-cols-2 gap-4 animate-pulse">
+          {[1,2,3,4,5,6].map(i => <div key={i} className="h-10 bg-gray-100 rounded-lg" />)}
         </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-5">
+          {[
+            ['Company name',        company?.name],
+            ['Registration number', company?.registrationNumber],
+            ['VAT number',          company?.vatNumber],
+            ['Email',               company?.email],
+            ['Phone',               company?.phone],
+            ['Your role',           company?.userRole],
+          ].map(([label, value]) => (
+            <div key={label} className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
+              <span className="text-sm text-gray-900">{value || <span className="text-gray-400">—</span>}</span>
+            </div>
+          ))}
+          {company?.address && (
+            <div className="col-span-2 flex flex-col gap-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Address</span>
+              <span className="text-sm text-gray-900">{company.address}</span>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex items-start gap-2.5 p-3.5 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">
+        <span className="flex-shrink-0 mt-0.5">ℹ️</span>
+        <span>Company details are managed by your account administrator. Contact support to make changes.</span>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Company name" value={name} onChange={setName} placeholder="Acme Ltd" />
-        <SelectField label="Industry" value={industry} onChange={setIndustry}>
-          {['Financial Services','Accounting & Bookkeeping','Retail','Manufacturing','Technology','Healthcare','Construction','Legal','Education','Other'].map(o => <option key={o}>{o}</option>)}
-        </SelectField>
-        <SelectField label="Timezone" value={tz} onChange={setTz} helper="Used for date/time display and scheduled reports.">
-          {['Europe/London','Europe/Dublin','Europe/Paris','America/New_York','America/Los_Angeles','Asia/Tokyo','Australia/Sydney'].map(o => <option key={o}>{o}</option>)}
-        </SelectField>
-        <SelectField label="Date format" value={dateFormat} onChange={setDateFormat}>
-          {['DD/MM/YYYY','MM/DD/YYYY','YYYY-MM-DD'].map(o => <option key={o}>{o}</option>)}
-        </SelectField>
-      </div>
-      <div><SaveButton onClick={() => saveMutation.mutate()} loading={saveMutation.isPending} /></div>
     </div>
   )
 }
 
-// ── Tab 2: Currency — GET rates + PUT base currency ───────────────────────────
+// ── Tab 2: Currency ───────────────────────────────────────────────────────────
 
 function CurrencyTab({ onSave }: { onSave: (msg?: string) => void }) {
   const { companyId } = useAuth()
@@ -186,20 +158,20 @@ function CurrencyTab({ onSave }: { onSave: (msg?: string) => void }) {
 
   const { data: ratesData } = useQuery({
     queryKey: ['currency-rates', companyId],
-    queryFn: () => api.get(`/api/companies/${companyId}/currency/rates`).then(r => r.data),
+    queryFn: () => settingsService.getCurrencyRates(companyId!),
     enabled: !!companyId,
   })
 
   const { data: baseData } = useQuery({
     queryKey: ['currency-base', companyId],
-    queryFn: () => api.get(`/api/companies/${companyId}/currency/base`).then(r => r.data),
+    queryFn: () => settingsService.getBaseCurrency(companyId!),
     enabled: !!companyId,
   })
 
   useEffect(() => { if (baseData?.currency) setCurr(baseData.currency) }, [baseData])
 
   const saveMutation = useMutation({
-    mutationFn: () => api.put(`/api/companies/${companyId}/currency/base`, { currency: curr }),
+    mutationFn: () => settingsService.updateBaseCurrency(companyId!, curr),
     onSuccess: () => onSave('Base currency updated.'),
   })
 
@@ -253,25 +225,25 @@ function CurrencyTab({ onSave }: { onSave: (msg?: string) => void }) {
   )
 }
 
-// ── Tab 3: Language — GET/PUT /api/i18n/companies/{companyId}/language ────────
+// ── Tab 3: Language ───────────────────────────────────────────────────────────
 
 function LanguageTab({ onSave }: { onSave: (msg?: string) => void }) {
   const { companyId } = useAuth()
-  const [lang, setLang]           = useState('en-GB')
-  const [numFmt, setNumFmt]       = useState('1,234.56')
-  const [firstDay, setFirstDay]   = useState('Monday')
+  const [lang, setLang]             = useState('en-GB')
+  const [numFmt, setNumFmt]         = useState('1,234.56')
+  const [firstDay, setFirstDay]     = useState('Monday')
   const [fiscalYear, setFiscalYear] = useState('April')
 
   const { data: langData } = useQuery({
     queryKey: ['language', companyId],
-    queryFn: () => api.get(`/api/i18n/companies/${companyId}/language`).then(r => r.data),
+    queryFn: () => settingsService.getLanguage(companyId!),
     enabled: !!companyId,
   })
 
   useEffect(() => { if (langData?.languageCode) setLang(langData.languageCode) }, [langData])
 
   const saveMutation = useMutation({
-    mutationFn: () => api.put(`/api/i18n/companies/${companyId}/language`, { languageCode: lang }),
+    mutationFn: () => settingsService.updateLanguage(companyId!, lang),
     onSuccess: () => onSave('Language preferences saved.'),
   })
 
@@ -299,14 +271,14 @@ function LanguageTab({ onSave }: { onSave: (msg?: string) => void }) {
   )
 }
 
-// ── Tab 4: Xero — GET connection + POST sync + DELETE disconnect ──────────────
+// ── Tab 4: Xero ───────────────────────────────────────────────────────────────
 
 function XeroTab({ onSave }: { onSave: (msg?: string) => void }) {
   const { companyId } = useAuth()
 
   const { data: xeroData, refetch } = useQuery({
     queryKey: ['xero', companyId],
-    queryFn: () => api.get(`/api/xero/${companyId}/connection`).then(r => r.data).catch(() => null),
+    queryFn: () => settingsService.getXeroConnection(companyId!),
     enabled: !!companyId,
   })
 
@@ -314,12 +286,12 @@ function XeroTab({ onSave }: { onSave: (msg?: string) => void }) {
   const lastSync  = xeroData?.lastSyncedAt ? new Date(xeroData.lastSyncedAt).toLocaleString('en-GB') : '—'
 
   const syncMutation = useMutation({
-    mutationFn: () => api.post(`/api/xero/${companyId}/sync`, {}),
+    mutationFn: () => settingsService.syncXero(companyId!),
     onSuccess: () => { refetch(); onSave('Xero sync complete.') },
   })
 
   const disconnectMutation = useMutation({
-    mutationFn: () => api.delete(`/api/xero/${companyId}/disconnect`),
+    mutationFn: () => settingsService.disconnectXero(companyId!),
     onSuccess: () => { refetch(); onSave('Xero disconnected.') },
   })
 
@@ -396,7 +368,7 @@ function XeroTab({ onSave }: { onSave: (msg?: string) => void }) {
   )
 }
 
-// ── Tab 5: Notifications — local state only (no API endpoint available) ───────
+// ── Tab 5: Notifications ──────────────────────────────────────────────────────
 
 function NotificationsTab({ onSave }: { onSave: (msg?: string) => void }) {
   const [prefs, setPrefs] = useState({
@@ -427,7 +399,7 @@ function NotificationsTab({ onSave }: { onSave: (msg?: string) => void }) {
   )
 }
 
-// ── Tab 6: Security — GET/POST/DELETE /api/companies/{companyId}/api-keys ─────
+// ── Tab 6: Security ───────────────────────────────────────────────────────────
 
 interface ApiKey { id: string; name: string; keyPrefix: string; createdAt: string; lastUsedAt?: string }
 
@@ -435,22 +407,22 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
   const { companyId } = useAuth()
   const queryClient = useQueryClient()
 
-  const [tfa, setTfa]           = useState(true)
-  const [timeout, setTimeout2]  = useState('4h')
-  const [minLen, setMinLen]     = useState('12')
-  const [expiry, setExpiry]     = useState('90d')
+  const [tfa, setTfa]               = useState(true)
+  const [timeout, setTimeout2]      = useState('4h')
+  const [minLen, setMinLen]         = useState('12')
+  const [expiry, setExpiry]         = useState('90d')
   const [complexity, setComplexity] = useState(true)
   const [newKeyName, setNewKeyName] = useState('')
-  const [copied, setCopied]     = useState<string | null>(null)
+  const [copied, setCopied]         = useState<string | null>(null)
 
   const { data: keys = [] } = useQuery<ApiKey[]>({
     queryKey: ['api-keys', companyId],
-    queryFn: () => api.get(`/api/companies/${companyId}/api-keys`).then(r => r.data),
+    queryFn: () => settingsService.getApiKeys(companyId!),
     enabled: !!companyId,
   })
 
   const createMutation = useMutation({
-    mutationFn: () => api.post(`/api/companies/${companyId}/api-keys`, { name: newKeyName || 'New key' }),
+    mutationFn: () => settingsService.createApiKey(companyId!, newKeyName || 'New key'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys', companyId] })
       setNewKeyName('')
@@ -459,7 +431,7 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
   })
 
   const revokeMutation = useMutation({
-    mutationFn: (keyId: string) => api.delete(`/api/companies/${companyId}/api-keys/${keyId}`),
+    mutationFn: (keyId: string) => settingsService.revokeApiKey(companyId!, keyId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['api-keys', companyId] }),
   })
 
@@ -487,7 +459,6 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
         </SelectField>
       </div>
       <ToggleRow label="Require uppercase, numbers & symbols" desc="Enforce strong password complexity rules." checked={complexity} onChange={setComplexity} />
-
       <div>
         <div className="flex items-center justify-between mb-3.5">
           <div>
