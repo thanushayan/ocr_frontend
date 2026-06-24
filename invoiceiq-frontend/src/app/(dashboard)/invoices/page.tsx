@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../../../hooks/useAuth'
 import { invoiceService } from '../../../services/invoice.service'
 import { PagedInvoices } from '../../../types/invoice.types'
+import { CompanyOcrConfidenceCard } from '../../../components/invoices/CompanyOcrConfidenceCard'
 
 // Dummy fallback data
 const DUMMY_ROWS = [
@@ -156,6 +157,9 @@ export default function InvoicesPage() {
         </div>
       </div>
 
+      {/* Company-wide OCR confidence + threshold control */}
+      {companyId && <CompanyOcrConfidenceCard companyId={companyId} />}
+
       {/* Filter bar */}
       <div className="border-t border-gray-200 pt-4 flex items-center gap-2.5 flex-wrap">
         <FilterSelect icon={Filter}>
@@ -222,7 +226,7 @@ export default function InvoicesPage() {
                 rows.map((row) => {
                   const isSelected = selected.has(row.num)
                   return (
-<tr key={row.id ?? row.num} className={`transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                    <tr key={row.id ?? row.num} className={`transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
                       <td className="px-4 py-3">
                         <Checkbox checked={isSelected} onClick={() => toggle(row.num)} />
                       </td>
@@ -238,7 +242,7 @@ export default function InvoicesPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button
-onClick={() => router.push(`/invoices/${row.id ?? row.num}`)}
+                            onClick={() => router.push(`/invoices/${row.id ?? row.num}`)}
                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             title="View"
                           >
