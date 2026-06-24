@@ -47,3 +47,30 @@ export interface UpdateProfileRequest {
   preferredLanguage?: string
   avatarUrl?: string
 }
+// ── Token refresh / revoke ──────────────────────────────────────────────────
+export interface RefreshTokenRequest {
+  token: string
+}
+
+export interface RefreshResponse {
+  token: string
+  refreshToken: string
+  expiresAt?: string
+}
+
+// ── Two-factor authentication ───────────────────────────────────────────────
+// GET /api/auth/2fa/status → { twoFactorEnabled }
+export interface TwoFactorStatus {
+  twoFactorEnabled: boolean
+}
+
+// Body for enable / disable — the 6-digit code emailed to the user
+export interface TwoFactorCodeRequest {
+  code: string
+}
+
+// Body for the anonymous login-time verification (POST /api/auth/2fa/verify)
+export interface TwoFactorVerifyRequest {
+  userId: string
+  code: string
+}
