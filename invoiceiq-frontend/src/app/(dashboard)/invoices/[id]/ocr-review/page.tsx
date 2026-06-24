@@ -2,10 +2,13 @@
 
 import React, { useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   ArrowLeft, Check, CheckCheck, AlertTriangle,
   AlertCircle, RotateCcw, ArrowRight, CheckCircle
 } from 'lucide-react'
+import { invoiceService } from '../../../../../services/invoice.service'
 
 // ── OCR field type ──
 interface OcrField {
@@ -266,6 +269,44 @@ export default function OcrReviewPage() {
   const [fields, setFields]   = useState<OcrField[]>(INIT_FIELDS)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [approved, setApproved] = useState<Set<string>>(new Set())
+  const qc = useQueryClient()
+
+  // Manual corrections already recorded for this invoice
+  const { data: corrections } = useQuery({
+    queryKey: ['ocrCorrections', invoiceId],
+    queryFn: () => invoiceService.getOcrCorrections(invoiceId),
+    enabled: !!invoiceId,
+  })
+
+  // Re-run OCR on this invoice
+  const reRunOcr = useMutation({
+    mutationFn: () => invoiceService.triggerOcr(invoiceId),
+    onSuccess: () => {
+      toast.success('OCR re-run started.')
+      qc.invalidateQueries({ queryKey: ['ocrCorrections', invoiceId] })
+    },
+    onError: () => toast.error('Could not re-run OCR.'),
+  })
+
+  // Persist every edited field as a manual correction
+  const submitCorrections = useMutation({
+    mutationFn: async () => {
+      const edited = fields.filter((f) => f.value !== f.ocr)
+      for (const f of edited) {
+        await invoiceService.submitOcrCorrections(invoiceId, {
+          fieldName: f.label,
+          originalValue: f.ocr,
+          correctedValue: f.value,
+        })
+      }
+      return edited.length
+    },
+    onSuccess: (count) => {
+      toast.success(count ? `${count} correction${count > 1 ? 's' : ''} saved.` : 'No changes to save.')
+      qc.invalidateQueries({ queryKey: ['ocrCorrections', invoiceId] })
+    },
+    onError: () => toast.error('Could not save corrections.'),
+  })
 
   // Confidence stats
   const lowCount  = fields.filter((f) => f.conf < 70).length
@@ -392,6 +433,13 @@ export default function OcrReviewPage() {
 
           {/* Panel footer */}
           <div className="px-4 py-3.5 border-t border-gray-200 flex-shrink-0 space-y-2.5">
+            {/* Corrections history */}
+            {corrections && corrections.length > 0 && (
+              <div className="text-xs text-gray-400">
+                {corrections.length} manual correction{corrections.length > 1 ? 's' : ''} recorded for this invoice.
+              </div>
+            )}
+
             {/* Status banner */}
             {allApproved ? (
               <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-700">
@@ -406,11 +454,23 @@ export default function OcrReviewPage() {
 
             {/* Action buttons */}
             <div className="flex gap-2">
-              <button className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 border border-gray-300 hover:bg-gray-50 text-sm font-semibold text-gray-600 rounded-lg transition-colors">
-                <RotateCcw className="w-4 h-4" /> Re-run OCR
+              <button
+                onClick={() => reRunOcr.mutate()}
+                disabled={reRunOcr.isPending}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 border border-gray-300 hover:bg-gray-50 text-sm font-semibold text-gray-600 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {reRunOcr.isPending
+                  ? <><span className="w-4 h-4 rounded-full border-2 border-gray-300 border-t-blue-600 animate-spin" /> Re-running…</>
+                  : <><RotateCcw className="w-4 h-4" /> Re-run OCR</>}
               </button>
-              <button className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                Submit corrections <ArrowRight className="w-4 h-4" />
+              <button
+                onClick={() => submitCorrections.mutate()}
+                disabled={submitCorrections.isPending}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >
+                {submitCorrections.isPending
+                  ? <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Saving…</>
+                  : <>Submit corrections <ArrowRight className="w-4 h-4" /></>}
               </button>
             </div>
           </div>

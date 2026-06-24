@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 import { invoiceService } from '../../../services/invoice.service'
+import { DuplicateCheckResult } from '../../../types/invoice.types'
 
 const OCR_STEPS = [
   { msg: 'Uploading file…',                    pct: 15 },
@@ -65,19 +66,37 @@ function StepIndicator({ current }: { current: number }) {
 // ════════════════════════════════════════
 // STEP 1: Upload
 // ════════════════════════════════════════
-function StepUpload({ onNext }: { onNext: (file: File) => void }) {
+function StepUpload({ companyId, onNext }: { companyId?: string | null; onNext: (file: File) => void }) {
   const [dragging, setDragging] = useState(false)
   const [file, setFile]         = useState<File | null>(null)
+  const [dup, setDup]           = useState<DuplicateCheckResult | null>(null)
+  const [checking, setChecking] = useState(false)
   const inputRef                = useRef<HTMLInputElement>(null)
+
+  // Best-effort duplicate check on file select — never blocks the upload.
+  const pickFile = async (f: File) => {
+    setFile(f)
+    setDup(null)
+    if (!companyId) return
+    setChecking(true)
+    try {
+      const result = await invoiceService.checkDuplicate(companyId, { fileName: f.name })
+      setDup(result.isDuplicate ? result : null)
+    } catch {
+      // ignore — a failed duplicate check must not stop the user uploading
+    } finally {
+      setChecking(false)
+    }
+  }
 
   const handleDragOver   = (e: React.DragEvent) => { e.preventDefault(); setDragging(true) }
   const handleDragLeave  = () => setDragging(false)
   const handleDrop       = (e: React.DragEvent) => {
     e.preventDefault(); setDragging(false)
-    const f = e.dataTransfer.files[0]; if (f) setFile(f)
+    const f = e.dataTransfer.files[0]; if (f) pickFile(f)
   }
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (f) setFile(f)
+    const f = e.target.files?.[0]; if (f) pickFile(f)
   }
 
   const fileSize = file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : ''
@@ -119,9 +138,30 @@ function StepUpload({ onNext }: { onNext: (file: File) => void }) {
               <CheckCircle className="w-4 h-4" /> Ready to process
             </span>
           </div>
-          <button onClick={() => setFile(null)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+          <button onClick={() => { setFile(null); setDup(null) }} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
             <X className="w-4 h-4" /> Remove
           </button>
+        </div>
+      )}
+
+      {checking && (
+        <div className="flex items-center gap-2 px-4 py-3 border border-gray-200 rounded-lg bg-white text-sm text-gray-500">
+          <span className="w-4 h-4 rounded-full border-2 border-gray-300 border-t-blue-600 animate-spin" />
+          Checking for duplicates…
+        </div>
+      )}
+
+      {dup && (
+        <div className="flex items-start gap-2.5 px-4 py-3 border border-amber-200 rounded-lg bg-amber-50 text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <div>
+            <span className="font-semibold">Possible duplicate.</span>{' '}
+            {dup.reason ?? 'A similar invoice already exists.'}
+            {dup.existingInvoiceNumber && (
+              <> (existing: <span className="font-mono">{dup.existingInvoiceNumber}</span>)</>
+            )}
+            <div className="text-xs text-amber-600 mt-0.5">You can still upload &amp; process it below.</div>
+          </div>
         </div>
       )}
 
@@ -177,8 +217,8 @@ function StepProcessing({ file, companyId, onNext }: {
       try {
         animateTo(0, 15, () => {})
         const uploadResult = await invoiceService.upload(companyId, file)
-        const invoiceId = uploadResult?.invoice?.id ?? uploadResult?.Invoice?.id ?? uploadResult?.id
-        const fileUrl   = uploadResult?.invoice?.fileUrl ?? uploadResult?.file?.fileUrl ?? ''
+        const invoiceId = uploadResult.invoice?.id
+        const fileUrl   = uploadResult.invoice?.fileUrl ?? uploadResult.file?.fileUrl ?? ''
         if (!invoiceId) throw new Error('Upload failed — no invoice ID returned')
 
         setPct(38)
@@ -348,7 +388,7 @@ function StepReview({ invoiceId, fileUrl, companyId, onNext, onBack }: {
           setOcrFields(conf.fields.map((f: any) => ({
             label:      f.fieldName ?? f.label ?? 'Field',
             value:      String(f.value ?? f.extractedValue ?? '—'),
-            confidence: Math.round((f.confidence ?? 0.9) * 100),
+            confidence: Math.round((f.confidenceScore ?? f.confidence ?? 0.9) * 100),
             mono:       ['invoiceNumber', 'totalAmount', 'subTotal', 'taxAmount'].includes(f.fieldName),
           })))
           if (conf?.overallConfidence) setOverallConf(Math.round(conf.overallConfidence * 100))
@@ -621,7 +661,7 @@ export default function UploadPage() {
       <StepIndicator current={step} />
 
       {step === 1 && (
-        <StepUpload onNext={(f) => { setFile(f); setStep(2) }} />
+        <StepUpload companyId={companyId} onNext={(f) => { setFile(f); setStep(2) }} />
       )}
       {step === 2 && file && companyId && (
         <StepProcessing
