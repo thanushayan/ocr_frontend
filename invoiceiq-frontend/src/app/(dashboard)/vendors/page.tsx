@@ -8,44 +8,8 @@ import {
   Info, SlidersHorizontal, ChevronDown
 } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
-import api from '../../../lib/axios'
-
-// ── API types ──
-interface ApiVendor {
-  id: string
-  name: string
-  email?: string
-  phone?: string
-  address?: string
-  taxId?: string
-  vatNumber?: string
-  invoiceCount?: number
-  totalSpend?: number
-  currency?: string
-  lastInvoiceDate?: string
-  portalEnabled?: boolean
-  portalEmail?: string
-  isActive?: boolean
-  status?: string
-  createdAt?: string
-}
-
-interface CreateVendorBody {
-  name: string
-  email?: string
-  phone?: string
-  address?: string
-  taxId?: string
-}
-
-const vendorApi = {
-  list: (companyId: string) =>
-    api.get<ApiVendor[]>(`/api/companies/${companyId}/vendors`).then(r => r.data),
-  create: (companyId: string, body: CreateVendorBody) =>
-    api.post<ApiVendor>(`/api/companies/${companyId}/vendors`, body).then(r => r.data),
-  invite: (companyId: string, vendorId: string) =>
-    api.post(`/api/companies/${companyId}/vendors/${vendorId}/invite`, {}).then(r => r.data),
-}
+import { vendorService } from '../../../services/vendor.service'
+import { Vendor, CreateVendorRequest } from '../../../types/vendor.types'
 
 function fmt(n?: number, currency?: string) {
   if (!n) return '—'
@@ -127,7 +91,7 @@ function FormField({ label, value, onChange, placeholder, type = 'text', require
   )
 }
 
-function AddVendorModal({ onClose, onSave }: { onClose: () => void; onSave: (body: CreateVendorBody) => void }) {
+function AddVendorModal({ onClose, onSave }: { onClose: () => void; onSave: (body: CreateVendorRequest) => void }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', address: '', taxId: '' })
   const set = (k: string) => (v: string) => setForm((f) => ({ ...f, [k]: v }))
   const valid = form.name.trim() && form.email.trim()
@@ -171,7 +135,18 @@ function AddVendorModal({ onClose, onSave }: { onClose: () => void; onSave: (bod
           </button>
           <button
             disabled={!valid}
-            onClick={() => { if (valid) { onSave(form); onClose() } }}
+            onClick={() => {
+              if (valid) {
+                onSave({
+                  name: form.name,
+                  contactEmail: form.email,
+                  phone: form.phone,
+                  address: form.address,
+                  vatNumber: form.taxId,
+                })
+                onClose()
+              }
+            }}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" /> Save vendor
@@ -192,14 +167,14 @@ export default function VendorsPage() {
   const [toast, setToast]             = useState<string | null>(null)
   const [invited, setInvited]         = useState<Set<string>>(new Set())
 
-  const { data: vendors = [], isLoading } = useQuery<ApiVendor[]>({
+  const { data: vendors = [], isLoading } = useQuery<Vendor[]>({
     queryKey: ['vendors', companyId],
-    queryFn:  () => vendorApi.list(companyId!),
+    queryFn:  () => vendorService.list(companyId!),
     enabled:  !!companyId,
   })
 
   const createMutation = useMutation({
-    mutationFn: (body: CreateVendorBody) => vendorApi.create(companyId!, body),
+    mutationFn: (body: CreateVendorRequest) => vendorService.create(companyId!, body),
     onSuccess: (v) => {
       queryClient.invalidateQueries({ queryKey: ['vendors', companyId] })
       setToast(`${v.name} added successfully.`)
@@ -207,19 +182,28 @@ export default function VendorsPage() {
   })
 
   const inviteMutation = useMutation({
-    mutationFn: (vendorId: string) => vendorApi.invite(companyId!, vendorId),
-    onSuccess: (_, vendorId) => {
-      setInvited((s) => { const n = new Set(s); n.add(vendorId); return n })
-      const v = vendors.find(x => x.id === vendorId)
-      setToast(`Invitation sent to ${v?.email ?? 'vendor'}`)
+    mutationFn: (v: Vendor) =>
+      vendorService.invite(companyId!, v.id, { email: v.contactEmail ?? '', fullName: v.name }),
+    onSuccess: (_, v) => {
+      setInvited((s) => { const n = new Set(s); n.add(v.id); return n })
+      setToast(`Invitation sent to ${v.contactEmail ?? 'vendor'}`)
+      queryClient.invalidateQueries({ queryKey: ['vendors', companyId] })
+    },
+  })
+
+  const portalAccessMutation = useMutation({
+    mutationFn: (vars: { vendorId: string; isActive: boolean }) =>
+      vendorService.updatePortalAccess(companyId!, vars.vendorId, { isActive: vars.isActive }),
+    onSuccess: (_, vars) => {
+      setToast(vars.isActive ? 'Portal access enabled.' : 'Portal access disabled.')
       queryClient.invalidateQueries({ queryKey: ['vendors', companyId] })
     },
   })
 
   const filtered = vendors.filter((v) => {
     const q = search.toLowerCase()
-    const matchQ = !q || v.name.toLowerCase().includes(q) || (v.email ?? '').toLowerCase().includes(q)
-    const isActive = v.isActive ?? (v.status != null ? v.status === 'Active' : true)
+    const matchQ = !q || v.name.toLowerCase().includes(q) || (v.contactEmail ?? '').toLowerCase().includes(q)
+    const isActive = v.isActive ?? true
     const matchS = statusFilter === 'All' || (statusFilter === 'Active' ? isActive : !isActive)
     return matchQ && matchS
   })
@@ -337,13 +321,13 @@ export default function VendorsPage() {
                         <Avatar name={v.name} />
                         <div>
                           <p className="font-bold text-gray-900">{v.name}</p>
-                          <p className="text-xs font-mono text-gray-400 mt-0.5">{v.taxId ?? v.vatNumber ?? '—'}</p>
+                          <p className="text-xs font-mono text-gray-400 mt-0.5">{v.vatNumber ?? '—'}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3.5">
-                      {v.email
-                        ? <a href={`mailto:${v.email}`} className="text-sm text-blue-600 hover:underline">{v.email}</a>
+                      {v.contactEmail
+                        ? <a href={`mailto:${v.contactEmail}`} className="text-sm text-blue-600 hover:underline">{v.contactEmail}</a>
                         : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-3.5 text-right font-mono font-bold text-gray-900 tabular-nums">
@@ -362,19 +346,34 @@ export default function VendorsPage() {
                         <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View vendor">
                           <Eye className="w-4 h-4" />
                         </button>
-                       {!portalOn && (
-  <button
-    disabled
-    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-xs font-semibold bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-    title="Portal invite coming soon"
-  >
-    <Send className="w-3 h-3" /> Invite
-  </button>
-)}
+                        {!portalOn && (
+                          <button
+                            onClick={() => inviteMutation.mutate(v)}
+                            disabled={alreadyInvited || inviteMutation.isPending || !v.contactEmail}
+                            title={!v.contactEmail ? 'Add a contact email before inviting' : undefined}
+                            className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg border text-xs font-semibold transition-colors disabled:opacity-60 ${
+                              alreadyInvited
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            {alreadyInvited ? <><Check className="w-3 h-3" /> Invited</> : <><Send className="w-3 h-3" /> Invite</>}
+                          </button>
+                        )}
                         {portalOn && (
-                          <span className="inline-flex items-center h-7 px-2.5 rounded-lg bg-teal-50 border border-teal-200 text-xs font-semibold text-teal-700">
-                            Portal active
-                          </span>
+                          <>
+                            <span className="inline-flex items-center h-7 px-2.5 rounded-lg bg-teal-50 border border-teal-200 text-xs font-semibold text-teal-700">
+                              Portal active
+                            </span>
+                            <button
+                              onClick={() => portalAccessMutation.mutate({ vendorId: v.id, isActive: false })}
+                              disabled={portalAccessMutation.isPending}
+                              className="inline-flex items-center h-7 px-2 rounded-lg border border-gray-300 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-60"
+                              title="Disable portal access"
+                            >
+                              Disable
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
