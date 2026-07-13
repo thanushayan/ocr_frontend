@@ -43,7 +43,7 @@ export const invoiceService = {
     if (extra?.expenseCategoryId) form.append('expenseCategoryId', extra.expenseCategoryId)
     if (extra?.notes) form.append('notes', extra.notes)
     const { data } = await api.post<UploadInvoiceResponse>(
-      `/api/clients/${clientId}/invoices`, form,
+      `/api/clients/${clientId}/upload`, form,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     )
     return data

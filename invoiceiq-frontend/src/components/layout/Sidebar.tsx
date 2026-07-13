@@ -7,24 +7,23 @@ import { useAuth } from '../../hooks/useAuth'
 import {
   ScanText, LayoutDashboard, ReceiptText, CloudUpload,
   Store, ClipboardCheck, Package, BarChart3,
-  FileText, Users, Settings, Briefcase, Wine, Percent, BookOpen
+  FileText, Settings, Beer, Receipt, BookOpen
 } from 'lucide-react'
 
 // பக்க வழிகாட்டல் items
 const NAV = [
-  { id: 'clients',    href: '/clients',    label: 'Clients',         icon: Briefcase },
   { id: 'dashboard',  href: '/dashboard',  label: 'Dashboard',       icon: LayoutDashboard },
   { id: 'invoices',   href: '/invoices',   label: 'Invoices',        icon: ReceiptText },
   { id: 'upload',     href: '/upload',     label: 'Upload Invoice',  icon: CloudUpload },
   { id: 'vendors',    href: '/vendors',    label: 'Vendors',         icon: Store },
   { id: 'approvals',  href: '/approvals',  label: 'Approvals',       icon: ClipboardCheck, badge: 8 },
   { id: 'pos',        href: '/purchase-orders', label: 'Purchase Orders', icon: Package },
-  { id: 'alcohol',    href: '/alcohol-duty',        label: 'Alcohol Duty',        icon: Wine },
-  { id: 'vat',        href: '/vat-returns',         label: 'VAT Returns',         icon: Percent },
-  { id: 'mgmt',       href: '/management-accounts', label: 'Mgmt Accounts',       icon: BookOpen },
   { id: 'analytics',  href: '/analytics',  label: 'Analytics',       icon: BarChart3 },
   { id: 'reports',    href: '/reports',    label: 'Reports',         icon: FileText },
-  { id: 'team',       href: '/team',       label: 'Team',            icon: Users },
+  { id: 'clients',    href: '/clients',              label: 'Clients',             icon: Store },
+  { id: 'alcohol',    href: '/alcohol-duty',         label: 'Alcohol Duty',        icon: Beer },
+  { id: 'vat',        href: '/vat-returns',          label: 'VAT Returns',         icon: Receipt },
+  { id: 'mgmt',       href: '/management-accounts',  label: 'Management Accounts', icon: BookOpen },
   { id: 'settings',   href: '/settings',   label: 'Settings',        icon: Settings },
 ]
 
@@ -41,7 +40,7 @@ function InitialsAvatar({ name }: { name: string }) {
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const { user }  = useAuth()
+  const { user, activeClient } = useAuth()
 
   return (
     <aside className="w-60 shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
@@ -102,6 +101,12 @@ export default function Sidebar() {
           <div className="flex-1 min-w-0">
             <div className="text-sm font-bold text-gray-900 truncate">{user?.fullName ?? 'User'}</div>
             <div className="text-xs text-gray-400 truncate capitalize">{user?.role ?? 'Member'}</div>
+            {activeClient && (
+              <div className="mt-1 flex items-center gap-1.5 px-2 py-1 bg-blue-50 rounded-md">
+                <Store size={12} className="text-blue-500 shrink-0" />
+                <span className="text-xs text-blue-600 font-medium truncate">{activeClient.businessName}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

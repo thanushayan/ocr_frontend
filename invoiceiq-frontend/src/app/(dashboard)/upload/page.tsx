@@ -638,7 +638,8 @@ function StepSubmit({ invoiceId, summary, onBack }: {
 // Main Page
 // ════════════════════════════════════════
 export default function UploadPage() {
-  const { activeClientId: clientId } = useAuth()
+  const { activeClient } = useAuth()
+  const clientId = activeClient?.id
   const [step, setStep]           = useState(1)
   const [file, setFile]           = useState<File | null>(null)
   const [invoiceId, setInvoiceId] = useState<string>('')

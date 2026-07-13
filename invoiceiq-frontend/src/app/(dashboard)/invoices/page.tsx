@@ -92,7 +92,8 @@ function formatDate(dateStr?: string) {
 
 export default function InvoicesPage() {
   const router = useRouter()
-  const { activeClientId: clientId } = useAuth()
+  const { activeClient } = useAuth()
+  const clientId = activeClient?.id
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [search, setSearch]     = useState('')

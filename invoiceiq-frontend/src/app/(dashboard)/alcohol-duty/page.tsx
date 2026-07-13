@@ -3,28 +3,10 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, X, Loader2, Wine, Send, CheckCircle } from 'lucide-react'
+import { Plus, X, Loader2, Beer, Send, CheckCircle } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
-import { alcoholDutyService } from '../../../services/offLicence.service'
-
-interface DutyRate {
-  id?: string
-  category?: string
-  description?: string
-  abvBand?: string
-  ratePerLitre?: number
-  rate?: number
-}
-
-interface DutyPeriod {
-  id: string
-  quarterLabel?: string
-  periodFrom?: string
-  periodTo?: string
-  totalDuty?: number
-  status?: string
-  submittedAt?: string
-}
+import { alcoholDutyService } from '../../../services/alcoholDuty.service'
+import type { AlcoholDutyPeriod, AlcoholDutyRate } from '../../../types/client.types'
 
 function fmt(n?: number) {
   if (n == null) return '—'
@@ -37,14 +19,13 @@ function fmtDate(d?: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function SubmittedBadge({ status }: { status?: string }) {
-  const submitted = (status ?? '').toLowerCase() === 'submitted'
+function SubmittedBadge({ submitted }: { submitted: boolean }) {
   return (
     <span className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-xs font-bold border ${
       submitted ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'
     }`}>
       <span className={`w-1.5 h-1.5 rounded-full ${submitted ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-      {submitted ? 'Submitted' : (status ?? 'Draft')}
+      {submitted ? 'Submitted' : 'Draft'}
     </span>
   )
 }
@@ -66,7 +47,7 @@ function CalculateModal({ onClose, onCalculate, pending }: {
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
-              <Wine className="w-5 h-5 text-blue-600" />
+              <Beer className="w-5 h-5 text-blue-600" />
             </div>
             <div>
               <p className="text-sm font-bold text-gray-900">Calculate duty period</p>
@@ -115,24 +96,24 @@ function CalculateModal({ onClose, onCalculate, pending }: {
 }
 
 export default function AlcoholDutyPage() {
-  const { activeClient, hasActiveClient } = useAuth()
+  const { activeClient } = useAuth()
   const queryClient = useQueryClient()
   const [showModal, setShowModal] = useState(false)
 
-  const { data: periods = [], isLoading } = useQuery<DutyPeriod[]>({
+  const { data: periods = [], isLoading } = useQuery<AlcoholDutyPeriod[]>({
     queryKey: ['alcohol-duty', activeClient?.id],
-    queryFn: () => alcoholDutyService.getPeriods(),
-    enabled: hasActiveClient,
+    queryFn: () => alcoholDutyService.getPeriods(activeClient!.id),
+    enabled: !!activeClient?.id,
   })
 
-  const { data: rates = [] } = useQuery<DutyRate[]>({
+  const { data: rates = [] } = useQuery<AlcoholDutyRate[]>({
     queryKey: ['alcohol-duty-rates'],
     queryFn: () => alcoholDutyService.getRates(),
   })
 
   const calculateMutation = useMutation({
     mutationFn: (body: { periodFrom: string; periodTo: string; quarterLabel?: string }) =>
-      alcoholDutyService.calculate(body),
+      alcoholDutyService.calculate(activeClient!.id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alcohol-duty', activeClient?.id] })
       setShowModal(false)
@@ -142,7 +123,7 @@ export default function AlcoholDutyPage() {
   })
 
   const submitMutation = useMutation({
-    mutationFn: (periodId: string) => alcoholDutyService.submit(periodId),
+    mutationFn: (periodId: string) => alcoholDutyService.submit(activeClient!.id, periodId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alcohol-duty', activeClient?.id] })
       toast.success('Duty period submitted')
@@ -150,16 +131,26 @@ export default function AlcoholDutyPage() {
     onError: () => toast.error('Failed to submit duty period'),
   })
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Alcohol Duty</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {activeClient ? <>Viewing: <span className="font-semibold text-gray-700">{activeClient.businessName}</span> — </> : null}
-            HMRC alcohol duty periods and rates.
-          </p>
+          {activeClient && (
+            <p className="text-sm text-blue-600 font-medium mt-0.5">
+              📍 {activeClient.businessName} · {activeClient.businessPostcode}
+            </p>
+          )}
+          <p className="text-sm text-gray-500 mt-1">HMRC alcohol duty periods and rates.</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -170,15 +161,13 @@ export default function AlcoholDutyPage() {
       </div>
 
       {/* Duty periods */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-200">
           <p className="text-sm font-bold text-gray-900">Duty periods</p>
         </div>
-        {isLoading ? (
-          <div className="p-10 text-sm text-gray-500 text-center">Loading periods…</div>
-        ) : periods.length === 0 ? (
+        {periods.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <Wine className="w-7 h-7 text-gray-300" />
+            <Beer className="w-7 h-7 text-gray-300" />
             <p className="text-sm text-gray-500">No duty periods yet. Calculate your first period.</p>
           </div>
         ) : (
@@ -188,47 +177,46 @@ export default function AlcoholDutyPage() {
                 <th className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider px-5 py-3">Quarter</th>
                 <th className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider px-5 py-3">Period</th>
                 <th className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider px-5 py-3">Total duty</th>
+                <th className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider px-5 py-3">Payable</th>
                 <th className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider px-5 py-3">Status</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody>
-              {periods.map(p => {
-                const submitted = (p.status ?? '').toLowerCase() === 'submitted'
-                return (
-                  <tr key={p.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 text-sm font-bold text-gray-900">{p.quarterLabel ?? '—'}</td>
-                    <td className="px-5 py-3.5 text-sm text-gray-600">{fmtDate(p.periodFrom)} → {fmtDate(p.periodTo)}</td>
-                    <td className="px-5 py-3.5 text-sm font-semibold text-gray-900">{fmt(p.totalDuty)}</td>
-                    <td className="px-5 py-3.5"><SubmittedBadge status={p.status} /></td>
-                    <td className="px-5 py-3.5 text-right">
-                      {submitted ? (
-                        <span className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-600">
-                          <CheckCircle size={14} /> Done
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => submitMutation.mutate(p.id)}
-                          disabled={submitMutation.isPending}
-                          className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-40"
-                        >
-                          <Send size={13} /> Submit
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
+              {periods.map(p => (
+                <tr key={p.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                  <td className="px-5 py-3.5 text-sm font-bold text-gray-900">{p.quarterLabel ?? '—'}</td>
+                  <td className="px-5 py-3.5 text-sm text-gray-600">{fmtDate(p.periodFrom)} → {fmtDate(p.periodTo)}</td>
+                  <td className="px-5 py-3.5 text-sm text-gray-600">{fmt(p.totalDutyPayable)}</td>
+                  <td className="px-5 py-3.5 text-sm font-semibold text-gray-900">{fmt(p.finalDutyPayable)}</td>
+                  <td className="px-5 py-3.5"><SubmittedBadge submitted={p.isSubmitted} /></td>
+                  <td className="px-5 py-3.5 text-right">
+                    {p.isSubmitted ? (
+                      <span className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-600">
+                        <CheckCircle size={14} /> {p.hmrcReference ?? 'Done'}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => submitMutation.mutate(p.id)}
+                        disabled={submitMutation.isPending}
+                        className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-40"
+                      >
+                        <Send size={13} /> Submit
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
       </div>
 
       {/* HMRC rates */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-200">
           <p className="text-sm font-bold text-gray-900">HMRC duty rates</p>
-          <p className="text-xs text-gray-400 mt-0.5">Current alcohol duty rates by category</p>
+          <p className="text-xs text-gray-400 mt-0.5">Current alcohol duty rates by category and ABV band</p>
         </div>
         {rates.length === 0 ? (
           <div className="p-8 text-sm text-gray-400 text-center">No rates available.</div>
@@ -238,15 +226,17 @@ export default function AlcoholDutyPage() {
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider px-5 py-3">Category</th>
                 <th className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider px-5 py-3">ABV band</th>
-                <th className="text-right text-xs font-bold text-gray-400 uppercase tracking-wider px-5 py-3">Rate</th>
+                <th className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider px-5 py-3">Description</th>
+                <th className="text-right text-xs font-bold text-gray-400 uppercase tracking-wider px-5 py-3">Rate / litre</th>
               </tr>
             </thead>
             <tbody>
-              {rates.map((r, i) => (
-                <tr key={r.id ?? i} className="border-b border-gray-100 last:border-0">
-                  <td className="px-5 py-3 text-sm text-gray-800">{r.category ?? r.description ?? '—'}</td>
-                  <td className="px-5 py-3 text-sm text-gray-600">{r.abvBand ?? '—'}</td>
-                  <td className="px-5 py-3 text-sm font-semibold text-gray-900 text-right">{fmt(r.ratePerLitre ?? r.rate)}</td>
+              {rates.map(r => (
+                <tr key={r.id} className="border-b border-gray-100 last:border-0">
+                  <td className="px-5 py-3 text-sm text-gray-800">{r.dutyCategory}</td>
+                  <td className="px-5 py-3 text-sm text-gray-600">{r.abvBand} ({r.abvFrom}–{r.abvTo}%)</td>
+                  <td className="px-5 py-3 text-sm text-gray-600">{r.description}</td>
+                  <td className="px-5 py-3 text-sm font-semibold text-gray-900 text-right">{fmt(r.ratePerLitre)}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,42 +1,45 @@
-// ── Accountant (the logged-in user) ─────────────────────────────────────────
-export interface AccountantProfile {
+// Updated User (Accountant profile from /api/auth/me)
+export interface User {
   id: string
   fullName: string
   email: string
+  isActive: boolean
+  createdAt: string
+  avatarUrl?: string
   phone?: string
+  jobTitle?: string
+  preferredLanguage: string
+  twoFactorEnabled: boolean
+  twoFactorMethod?: string
+  lastLoginAt?: string
+  // NEW fields for accountant
   practiceAddress?: string
   icaewNumber?: string
-  aatnumber?: string
+  aatNumber?: string
   mtdAgentReference?: string
-  twoFactorEnabled: boolean
-  lastLoginAt?: string
-  totalClients: number
-  plan: string
-  subscriptionStatus: string
+  plan?: string                // 'Starter' | 'Pro' | 'Unlimited'
+  subscriptionStatus?: string
   trialEndsAt?: string
-  maxClients: number
-}
-
-// App-wide user shape — the accountant profile plus optional presentation
-// fields still used by profile/settings screens.
-export interface User extends AccountantProfile {
-  isActive?: boolean
-  createdAt?: string
-  avatarUrl?: string
-  jobTitle?: string
-  preferredLanguage?: string
-  twoFactorMethod?: string
+  maxClients?: number
+  totalClients?: number
+  // Keep for backward compat
+  companyId?: string
+  companyName?: string
   role?: string
 }
 
+// Updated AuthResponse — backend now returns accountantId not userId/companyId
 export interface AuthResponse {
   token: string
   refreshToken?: string
-  accountantId: string
   fullName: string
   email: string
-  plan: string           // 'Starter' | 'Pro' | 'Unlimited'
+  accountantId: string     // NEW — was userId
   expiresAt: string
+  plan: string             // NEW — 'Starter' | 'Pro' | 'Unlimited'
+  // Keep for backward compat during transition:
+  userId?: string
+  companyId?: string
 }
 
 export interface LoginRequest {
@@ -44,11 +47,13 @@ export interface LoginRequest {
   password: string
 }
 
+// Updated RegisterRequest — remove companyName, add phone
 export interface RegisterRequest {
   fullName: string
   email: string
   password: string
-  phone?: string
+  phone?: string             // NEW optional
+  // companyName removed — accountant registers without company
 }
 
 export interface UpdateProfileRequest {
@@ -59,53 +64,8 @@ export interface UpdateProfileRequest {
   avatarUrl?: string
   practiceAddress?: string
   icaewNumber?: string
-  aatnumber?: string
+  aatNumber?: string
   mtdAgentReference?: string
-}
-
-// ── Client (off-licence shop managed by the accountant) ─────────────────────
-export interface Client {
-  id: string
-  accountantId: string
-  businessName: string
-  tradingName?: string
-  clientType: string
-  ownerFullName?: string
-  ownerEmail?: string
-  ownerPhone?: string
-  businessAddress?: string
-  businessPostcode?: string
-  localAuthority?: string
-  vatRegistrationNumber?: string
-  awrsUrn?: string
-  monthlyFee: number
-  isActive: boolean
-  onboardedAt: string
-}
-
-export interface ClientSummary {
-  clientId: string
-  businessName: string
-  pendingInvoices: number
-  vatReturnDue?: string
-  premisesLicenceExpiry?: string
-  complianceAlerts: number
-  lastActivityAt?: string
-}
-
-export interface CreateClientRequest {
-  businessName: string
-  tradingName?: string
-  clientType?: string
-  ownerFullName?: string
-  ownerEmail?: string
-  ownerPhone?: string
-  businessAddress?: string
-  businessPostcode?: string
-  localAuthority?: string
-  vatRegistrationNumber?: string
-  awrsUrn?: string
-  monthlyFee?: number
 }
 
 // ── Token refresh / revoke ──────────────────────────────────────────────────

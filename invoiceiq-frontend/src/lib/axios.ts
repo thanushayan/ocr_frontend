@@ -61,11 +61,13 @@ api.interceptors.response.use(
   }
 )
 
-// Helper: build a URL scoped to the active client (selected off-licence shop)
-export const clientUrl = (path: string): string => {
-  const activeClientId = authLib.getActiveClientId()
-  if (!activeClientId) throw new Error('No active client selected')
-  return `/api/clients/${activeClientId}${path}`
-}
-
 export default api
+
+// Helper: build client-scoped URL using active client from localStorage
+export function clientUrl(path: string): string {
+  if (typeof window === 'undefined') return path
+  const raw = localStorage.getItem('iq_client')
+  if (!raw) throw new Error('No active client selected')
+  const client = JSON.parse(raw)
+  return `/api/clients/${client.id}${path}`
+}

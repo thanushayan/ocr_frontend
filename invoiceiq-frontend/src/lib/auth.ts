@@ -1,10 +1,9 @@
 import Cookies from 'js-cookie'
-import type { Client } from '../types/auth.types'
 
 const TOKEN_KEY = 'iq_token'
 const REFRESH_KEY = 'iq_refresh'
 const USER_KEY = 'iq_user'
-const ACTIVE_CLIENT_KEY = 'iq_active_client'
+const CLIENT_KEY = 'iq_client'
 
 export const authLib = {
   setTokens(token: string, refreshToken: string) {
@@ -27,26 +26,27 @@ export const authLib = {
   },
 
   // ── Active client (selected off-licence shop) ─────────────────────────────
-  setActiveClient(client: Client) {
-    localStorage.setItem(ACTIVE_CLIENT_KEY, JSON.stringify(client))
+  setActiveClient(client: object) {
+    localStorage.setItem(CLIENT_KEY, JSON.stringify(client))
   },
-  getActiveClient(): Client | null {
+  getActiveClient<T>(): T | null {
     if (typeof window === 'undefined') return null
-    const raw = localStorage.getItem(ACTIVE_CLIENT_KEY)
-    return raw ? (JSON.parse(raw) as Client) : null
-  },
-  getActiveClientId(): string | null {
-    return this.getActiveClient()?.id ?? null
+    const raw = localStorage.getItem(CLIENT_KEY)
+    return raw ? (JSON.parse(raw) as T) : null
   },
   clearActiveClient() {
-    localStorage.removeItem(ACTIVE_CLIENT_KEY)
+    localStorage.removeItem(CLIENT_KEY)
+  },
+  hasActiveClient(): boolean {
+    if (typeof window === 'undefined') return false
+    return !!localStorage.getItem(CLIENT_KEY)
   },
 
   clearAll() {
     Cookies.remove(TOKEN_KEY)
     Cookies.remove(REFRESH_KEY)
     localStorage.removeItem(USER_KEY)
-    localStorage.removeItem(ACTIVE_CLIENT_KEY)
+    localStorage.removeItem(CLIENT_KEY)
   },
   isLoggedIn(): boolean {
     return !!Cookies.get(TOKEN_KEY)

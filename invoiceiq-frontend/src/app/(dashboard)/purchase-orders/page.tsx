@@ -256,7 +256,8 @@ function CreatePoModal({ clientId, onClose, onSuccess }: {
 const FILTERS = ['All', 'Open', 'Draft', 'Closed', 'Cancelled']
 
 export default function PurchaseOrdersPage() {
-  const { activeClientId: clientId } = useAuth()
+  const { activeClient } = useAuth()
+  const clientId = activeClient?.id
   const router = useRouter()
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('All')

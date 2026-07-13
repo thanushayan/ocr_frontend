@@ -83,7 +83,8 @@ function fmtDate(d?: string) {
 }
 
 export default function PurchaseOrderDetailPage() {
-  const { activeClientId: clientId } = useAuth()
+  const { activeClient } = useAuth()
+  const clientId = activeClient?.id
   const router = useRouter()
   const params = useParams()
   const poId = params.id as string

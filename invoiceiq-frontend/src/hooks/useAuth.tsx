@@ -4,7 +4,8 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { useRouter } from 'next/navigation'
 import { authLib } from '../lib/auth'
 import { authService } from '../services/auth.service'
-import { User, Client, LoginRequest, RegisterRequest, UpdateProfileRequest } from '../types/auth.types'
+import { User, LoginRequest, RegisterRequest, UpdateProfileRequest } from '../types/auth.types'
+import type { Client } from '../types/client.types'
 
 interface AuthContextType {
   user: User | null
@@ -31,7 +32,9 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [activeClient, setActiveClientState] = useState<Client | null>(null)
+  const [activeClient, setActiveClientState] = useState<Client | null>(
+    () => authLib.getActiveClient<Client>()
+  )
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
@@ -44,9 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authLib.isLoggedIn()) {
         const cached = authLib.getUser<User>()
         if (cached) setUser(cached)
-
-        const cachedClient = authLib.getActiveClient()
-        if (cachedClient) setActiveClientState(cachedClient)
 
         const me = await authService.getMe()
         setUser(me)

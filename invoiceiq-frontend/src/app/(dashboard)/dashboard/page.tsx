@@ -13,7 +13,6 @@ import {
 import Link from 'next/link'
 import { useAuth } from '../../../hooks/useAuth'
 import { dashboardService } from '../../../services/dashboard.service'
-import { DashboardData } from '../../../types/dashboard.types'
 
 // Dummy fallback data
 const dummyKpis = {
@@ -93,12 +92,12 @@ function KpiCard({
 }
 
 export default function DashboardPage() {
-  const { activeClientId: clientId, activeClient } = useAuth()
+  const { activeClient } = useAuth()
 
-  const { data, isLoading } = useQuery<DashboardData>({
-    queryKey: ['dashboard', clientId],
-    queryFn: () => dashboardService.getDashboard(clientId!),
-    enabled: !!clientId,
+  const { data, isLoading } = useQuery({
+    queryKey: ['dashboard', activeClient?.id],
+    queryFn: () => dashboardService.getDashboard(activeClient!.id),
+    enabled: !!activeClient?.id,
   })
 
   const formatCurrency = (amount: number) =>
@@ -145,10 +144,12 @@ export default function DashboardPage() {
       {/* பக்கம் தலைப்பு */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {activeClient ? <>Viewing: <span className="font-semibold text-gray-700">{activeClient.businessName}</span> — </> : null}
-          Welcome back! Here&apos;s what&apos;s happening with your invoices.
-        </p>
+        {activeClient && (
+          <p className="text-sm text-blue-600 font-medium mt-0.5">
+            📍 {activeClient.businessName} · {activeClient.businessPostcode}
+          </p>
+        )}
+        <p className="text-sm text-gray-500 mt-1">Welcome back! Here&apos;s what&apos;s happening with your invoices.</p>
       </div>
 
       {/* KPI அட்டைகள் */}

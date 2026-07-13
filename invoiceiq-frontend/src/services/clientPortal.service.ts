@@ -1,7 +1,7 @@
 import vendorApi from '../lib/vendorAxios'
 import Cookies from 'js-cookie'
 
-export const vendorPortalService = {
+export const clientPortalService = {
   async login(email: string, password: string) {
     const { data } = await vendorApi.post('/api/vendor-portal/login', { email, password })
     Cookies.set('vendorAccessToken', data.token, { expires: 1 })

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../hooks/useAuth'
-import ClientSelector from '../ClientSelector'
+import ClientSelector from './ClientSelector'
 import { Bell, ChevronDown, LogOut, User, Settings, CheckCheck, X, FileText, XCircle, Clock, ScanText } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'

@@ -503,7 +503,8 @@ function RightPanel({ invoice }: { invoice: any }) {
 export default function InvoiceDetailPage() {
   const params   = useParams()
   const router   = useRouter()
-  const { activeClientId: clientId } = useAuth()
+  const { activeClient } = useAuth()
+  const clientId = activeClient?.id
   const invoiceId = params.id as string
 
   const { data: invoice, isLoading } = useQuery({

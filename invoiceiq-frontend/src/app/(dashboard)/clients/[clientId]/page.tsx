@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Store, CheckCircle, MapPin, Phone, Mail, User, FileText, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../../../hooks/useAuth'
 import { clientService } from '../../../../services/client.service'
-import type { Client } from '../../../../types/auth.types'
+import type { Client } from '../../../../types/client.types'
 
 function fmtFee(n?: number) {
   if (!n) return '—'
@@ -38,7 +38,7 @@ export default function ClientDetailPage() {
 
   const { data: client, isLoading } = useQuery<Client>({
     queryKey: ['client', clientId],
-    queryFn: () => clientService.getById(clientId),
+    queryFn: () => clientService.get(clientId),
     enabled: !!clientId,
   })
 
