@@ -503,13 +503,13 @@ function RightPanel({ invoice }: { invoice: any }) {
 export default function InvoiceDetailPage() {
   const params   = useParams()
   const router   = useRouter()
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
   const invoiceId = params.id as string
 
   const { data: invoice, isLoading } = useQuery({
-    queryKey: ['invoice', companyId, invoiceId],
-    queryFn:  () => invoiceService.getById(companyId!, invoiceId),
-    enabled:  !!companyId && !!invoiceId,
+    queryKey: ['invoice', clientId, invoiceId],
+    queryFn:  () => invoiceService.getById(clientId!, invoiceId),
+    enabled:  !!clientId && !!invoiceId,
   })
 
   const status   = invoice?.status ?? 'Pending'

@@ -303,7 +303,7 @@ function Toast({ msg, onDone }: { msg: string; onDone: () => void }) {
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function TeamPage() {
-  const { companyId, user } = useAuth()
+  const { user } = useAuth()
   const queryClient = useQueryClient()
   const [showInvite, setShowInvite] = useState(false)
   const [roleTarget, setRoleTarget] = useState<Member | null>(null)
@@ -315,38 +315,37 @@ export default function TeamPage() {
     setTimeout(() => setToast(null), 2800)
   }
 
-  // GET /api/companies/{companyId}/members
+  // GET /api/accountant/members
   const { data: members = [], isLoading } = useQuery<Member[]>({
-    queryKey: ['members', companyId],
+    queryKey: ['members'],
     queryFn: async () => {
-      const res = await api.get(`/api/companies/${companyId}/members`)
+      const res = await api.get(`/api/accountant/members`)
       return (res.data as Member[]).map(m => ({
         ...m,
         status: m.status ?? 'Active',
         isYou: m.email === user?.email,
       }))
     },
-    enabled: !!companyId,
   })
 
-  // POST /api/companies/{companyId}/members/invite
+  // POST /api/accountant/members/invite
   const inviteMutation = useMutation({
     mutationFn: (body: { email: string; role: string }) =>
-      api.post(`/api/companies/${companyId}/members/invite`, body),
+      api.post(`/api/accountant/members/invite`, body),
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['members', companyId] })
+      queryClient.invalidateQueries({ queryKey: ['members'] })
       setShowInvite(false)
       showToast(`Invite sent to ${vars.email}`)
     },
     onError: () => showToast('Failed to send invitation'),
   })
 
-  // PATCH /api/companies/{companyId}/members/{userId}
+  // PATCH /api/accountant/members/{userId}
   const changeRoleMutation = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: string }) =>
-      api.patch(`/api/companies/${companyId}/members/${userId}`, { role }),
+      api.patch(`/api/accountant/members/${userId}`, { role }),
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['members', companyId] })
+      queryClient.invalidateQueries({ queryKey: ['members'] })
       setRoleTarget(null)
       const name = members.find(m => m.userId === vars.userId)?.fullName || 'Member'
       showToast(`${name}'s role updated to ${vars.role}`)
@@ -354,14 +353,14 @@ export default function TeamPage() {
     onError: () => showToast('Failed to update role'),
   })
 
-  // DELETE /api/companies/{companyId}/members/{userId}
+  // DELETE /api/accountant/members/{userId}
   const removeMutation = useMutation({
     mutationFn: (userId: string) =>
-      api.delete(`/api/companies/${companyId}/members/${userId}`),
+      api.delete(`/api/accountant/members/${userId}`),
     onSuccess: (_, userId) => {
       const name = members.find(m => m.userId === userId)?.fullName ||
                    members.find(m => m.userId === userId)?.email || 'Member'
-      queryClient.invalidateQueries({ queryKey: ['members', companyId] })
+      queryClient.invalidateQueries({ queryKey: ['members'] })
       setRemoving(null)
       showToast(`${name} removed from workspace`)
     },

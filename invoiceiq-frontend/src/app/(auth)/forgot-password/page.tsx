@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -84,7 +84,7 @@ function BackLink({ onClick }: { onClick?: () => void }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordForm() {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -399,5 +399,16 @@ export default function ForgotPasswordPage() {
         <BackLink />
       </div>
     </div>
+  )
+}
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(150deg, #1E3A5F 0%, #284B7A 48%, #3B82F6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Loader2 className="w-8 h-8 text-white animate-spin" />
+      </div>
+    }>
+      <ForgotPasswordForm />
+    </Suspense>
   )
 }

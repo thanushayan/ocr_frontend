@@ -7,17 +7,21 @@ import { useAuth } from '../../hooks/useAuth'
 import {
   ScanText, LayoutDashboard, ReceiptText, CloudUpload,
   Store, ClipboardCheck, Package, BarChart3,
-  FileText, Users, Settings
+  FileText, Users, Settings, Briefcase, Wine, Percent, BookOpen
 } from 'lucide-react'
 
 // பக்க வழிகாட்டல் items
 const NAV = [
+  { id: 'clients',    href: '/clients',    label: 'Clients',         icon: Briefcase },
   { id: 'dashboard',  href: '/dashboard',  label: 'Dashboard',       icon: LayoutDashboard },
   { id: 'invoices',   href: '/invoices',   label: 'Invoices',        icon: ReceiptText },
   { id: 'upload',     href: '/upload',     label: 'Upload Invoice',  icon: CloudUpload },
   { id: 'vendors',    href: '/vendors',    label: 'Vendors',         icon: Store },
   { id: 'approvals',  href: '/approvals',  label: 'Approvals',       icon: ClipboardCheck, badge: 8 },
   { id: 'pos',        href: '/purchase-orders', label: 'Purchase Orders', icon: Package },
+  { id: 'alcohol',    href: '/alcohol-duty',        label: 'Alcohol Duty',        icon: Wine },
+  { id: 'vat',        href: '/vat-returns',         label: 'VAT Returns',         icon: Percent },
+  { id: 'mgmt',       href: '/management-accounts', label: 'Mgmt Accounts',       icon: BookOpen },
   { id: 'analytics',  href: '/analytics',  label: 'Analytics',       icon: BarChart3 },
   { id: 'reports',    href: '/reports',    label: 'Reports',         icon: FileText },
   { id: 'team',       href: '/team',       label: 'Team',            icon: Users },

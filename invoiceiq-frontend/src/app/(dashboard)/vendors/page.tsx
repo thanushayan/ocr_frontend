@@ -7,7 +7,6 @@ import {
   Store, CheckCircle, ExternalLink, CreditCard,
   Info, SlidersHorizontal, ChevronDown
 } from 'lucide-react'
-import { useAuth } from '../../../hooks/useAuth'
 import { vendorService } from '../../../services/vendor.service'
 import { Vendor, CreateVendorRequest } from '../../../types/vendor.types'
 
@@ -158,7 +157,6 @@ function AddVendorModal({ onClose, onSave }: { onClose: () => void; onSave: (bod
 }
 
 export default function VendorsPage() {
-  const { companyId } = useAuth()
   const queryClient   = useQueryClient()
 
   const [search, setSearch]           = useState('')
@@ -168,35 +166,34 @@ export default function VendorsPage() {
   const [invited, setInvited]         = useState<Set<string>>(new Set())
 
   const { data: vendors = [], isLoading } = useQuery<Vendor[]>({
-    queryKey: ['vendors', companyId],
-    queryFn:  () => vendorService.list(companyId!),
-    enabled:  !!companyId,
+    queryKey: ['vendors'],
+    queryFn:  () => vendorService.list(),
   })
 
   const createMutation = useMutation({
-    mutationFn: (body: CreateVendorRequest) => vendorService.create(companyId!, body),
+    mutationFn: (body: CreateVendorRequest) => vendorService.create(body),
     onSuccess: (v) => {
-      queryClient.invalidateQueries({ queryKey: ['vendors', companyId] })
+      queryClient.invalidateQueries({ queryKey: ['vendors'] })
       setToast(`${v.name} added successfully.`)
     },
   })
 
   const inviteMutation = useMutation({
     mutationFn: (v: Vendor) =>
-      vendorService.invite(companyId!, v.id, { email: v.contactEmail ?? '', fullName: v.name }),
+      vendorService.invite(v.id, { email: v.contactEmail ?? '', fullName: v.name }),
     onSuccess: (_, v) => {
       setInvited((s) => { const n = new Set(s); n.add(v.id); return n })
       setToast(`Invitation sent to ${v.contactEmail ?? 'vendor'}`)
-      queryClient.invalidateQueries({ queryKey: ['vendors', companyId] })
+      queryClient.invalidateQueries({ queryKey: ['vendors'] })
     },
   })
 
   const portalAccessMutation = useMutation({
     mutationFn: (vars: { vendorId: string; isActive: boolean }) =>
-      vendorService.updatePortalAccess(companyId!, vars.vendorId, { isActive: vars.isActive }),
+      vendorService.updatePortalAccess(vars.vendorId, { isActive: vars.isActive }),
     onSuccess: (_, vars) => {
       setToast(vars.isActive ? 'Portal access enabled.' : 'Portal access disabled.')
-      queryClient.invalidateQueries({ queryKey: ['vendors', companyId] })
+      queryClient.invalidateQueries({ queryKey: ['vendors'] })
     },
   })
 

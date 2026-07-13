@@ -16,6 +16,6 @@ export const approvalsService = {
   start: (invoiceId: string, templateId?: string) =>
     api.post(`/api/invoices/${invoiceId}/approval/start`, { workflowTemplateId: templateId ?? null }).then(r => r.data),
 
-  getTemplates: (companyId: string) =>
-    api.get(`/api/companies/${companyId}/workflow-templates`).then(r => r.data),
+  getTemplates: (clientId: string) =>
+    api.get(`/api/clients/${clientId}/workflow-templates`).then(r => r.data),
 }

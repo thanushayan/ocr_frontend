@@ -104,12 +104,12 @@ function Toast({ msg, onDone }: { msg: string; onDone: () => void }) {
 // ── Tab 1: General — read-only (no PATCH endpoint exists) ─────────────────────
 
 function GeneralTab({ onSave: _ }: { onSave: (msg?: string) => void }) {
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
 
   const { data: company, isLoading } = useQuery({
-    queryKey: ['company', companyId],
-    queryFn: () => settingsService.getCompany(companyId!),
-    enabled: !!companyId,
+    queryKey: ['company', clientId],
+    queryFn: () => settingsService.getCompany(clientId!),
+    enabled: !!clientId,
   })
 
   return (
@@ -153,25 +153,25 @@ function GeneralTab({ onSave: _ }: { onSave: (msg?: string) => void }) {
 // ── Tab 2: Currency ───────────────────────────────────────────────────────────
 
 function CurrencyTab({ onSave }: { onSave: (msg?: string) => void }) {
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
   const [curr, setCurr] = useState('GBP')
 
   const { data: ratesData } = useQuery({
-    queryKey: ['currency-rates', companyId],
-    queryFn: () => settingsService.getCurrencyRates(companyId!),
-    enabled: !!companyId,
+    queryKey: ['currency-rates', clientId],
+    queryFn: () => settingsService.getCurrencyRates(clientId!),
+    enabled: !!clientId,
   })
 
   const { data: baseData } = useQuery({
-    queryKey: ['currency-base', companyId],
-    queryFn: () => settingsService.getBaseCurrency(companyId!),
-    enabled: !!companyId,
+    queryKey: ['currency-base', clientId],
+    queryFn: () => settingsService.getBaseCurrency(clientId!),
+    enabled: !!clientId,
   })
 
   useEffect(() => { if (baseData?.currency) setCurr(baseData.currency) }, [baseData])
 
   const saveMutation = useMutation({
-    mutationFn: () => settingsService.updateBaseCurrency(companyId!, curr),
+    mutationFn: () => settingsService.updateBaseCurrency(clientId!, curr),
     onSuccess: () => onSave('Base currency updated.'),
   })
 
@@ -228,22 +228,22 @@ function CurrencyTab({ onSave }: { onSave: (msg?: string) => void }) {
 // ── Tab 3: Language ───────────────────────────────────────────────────────────
 
 function LanguageTab({ onSave }: { onSave: (msg?: string) => void }) {
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
   const [lang, setLang]             = useState('en-GB')
   const [numFmt, setNumFmt]         = useState('1,234.56')
   const [firstDay, setFirstDay]     = useState('Monday')
   const [fiscalYear, setFiscalYear] = useState('April')
 
   const { data: langData } = useQuery({
-    queryKey: ['language', companyId],
-    queryFn: () => settingsService.getLanguage(companyId!),
-    enabled: !!companyId,
+    queryKey: ['language', clientId],
+    queryFn: () => settingsService.getLanguage(clientId!),
+    enabled: !!clientId,
   })
 
   useEffect(() => { if (langData?.languageCode) setLang(langData.languageCode) }, [langData])
 
   const saveMutation = useMutation({
-    mutationFn: () => settingsService.updateLanguage(companyId!, lang),
+    mutationFn: () => settingsService.updateLanguage(clientId!, lang),
     onSuccess: () => onSave('Language preferences saved.'),
   })
 
@@ -274,24 +274,24 @@ function LanguageTab({ onSave }: { onSave: (msg?: string) => void }) {
 // ── Tab 4: Xero ───────────────────────────────────────────────────────────────
 
 function XeroTab({ onSave }: { onSave: (msg?: string) => void }) {
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
 
   const { data: xeroData, refetch } = useQuery({
-    queryKey: ['xero', companyId],
-    queryFn: () => settingsService.getXeroConnection(companyId!),
-    enabled: !!companyId,
+    queryKey: ['xero', clientId],
+    queryFn: () => settingsService.getXeroConnection(clientId!),
+    enabled: !!clientId,
   })
 
   const connected = xeroData?.isConnected ?? false
   const lastSync  = xeroData?.lastSyncedAt ? new Date(xeroData.lastSyncedAt).toLocaleString('en-GB') : '—'
 
   const syncMutation = useMutation({
-    mutationFn: () => settingsService.syncXero(companyId!),
+    mutationFn: () => settingsService.syncXero(clientId!),
     onSuccess: () => { refetch(); onSave('Xero sync complete.') },
   })
 
   const disconnectMutation = useMutation({
-    mutationFn: () => settingsService.disconnectXero(companyId!),
+    mutationFn: () => settingsService.disconnectXero(clientId!),
     onSuccess: () => { refetch(); onSave('Xero disconnected.') },
   })
 
@@ -353,7 +353,7 @@ function XeroTab({ onSave }: { onSave: (msg?: string) => void }) {
                 <span key={f} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600">✅ {f}</span>
               ))}
             </div>
-            <a href={`/api/xero/${companyId}/connect`}
+            <a href={`/api/xero/${clientId}/connect`}
               className="inline-flex items-center gap-2.5 h-11 px-6 bg-[#1AB4D7] text-white text-sm font-bold rounded-lg hover:bg-[#17a0c0] transition-colors">
               <svg width="20" height="20" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" r="18" fill="rgba(255,255,255,.2)" />
@@ -404,7 +404,7 @@ function NotificationsTab({ onSave }: { onSave: (msg?: string) => void }) {
 interface ApiKey { id: string; name: string; keyPrefix: string; createdAt: string; lastUsedAt?: string }
 
 function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
   const queryClient = useQueryClient()
 
   const [tfa, setTfa]               = useState(true)
@@ -416,23 +416,23 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
   const [copied, setCopied]         = useState<string | null>(null)
 
   const { data: keys = [] } = useQuery<ApiKey[]>({
-    queryKey: ['api-keys', companyId],
-    queryFn: () => settingsService.getApiKeys(companyId!),
-    enabled: !!companyId,
+    queryKey: ['api-keys', clientId],
+    queryFn: () => settingsService.getApiKeys(clientId!),
+    enabled: !!clientId,
   })
 
   const createMutation = useMutation({
-    mutationFn: () => settingsService.createApiKey(companyId!, newKeyName || 'New key'),
+    mutationFn: () => settingsService.createApiKey(clientId!, newKeyName || 'New key'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys', companyId] })
+      queryClient.invalidateQueries({ queryKey: ['api-keys', clientId] })
       setNewKeyName('')
       onSave('API key created.')
     },
   })
 
   const revokeMutation = useMutation({
-    mutationFn: (keyId: string) => settingsService.revokeApiKey(companyId!, keyId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['api-keys', companyId] }),
+    mutationFn: (keyId: string) => settingsService.revokeApiKey(clientId!, keyId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['api-keys', clientId] }),
   })
 
   function handleCopy(id: string) {

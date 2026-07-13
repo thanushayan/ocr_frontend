@@ -83,7 +83,7 @@ function fmtDate(d?: string) {
 }
 
 export default function PurchaseOrderDetailPage() {
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
   const router = useRouter()
   const params = useParams()
   const poId = params.id as string
@@ -97,37 +97,37 @@ export default function PurchaseOrderDetailPage() {
   }
 
   const { data: po, isLoading } = useQuery<PurchaseOrder>({
-    queryKey: ['purchase-order', companyId, poId],
-    queryFn: () => purchaseOrderService.getById(companyId!, poId),
-    enabled: !!companyId && !!poId,
+    queryKey: ['purchase-order', clientId, poId],
+    queryFn: () => purchaseOrderService.getById(clientId!, poId),
+    enabled: !!clientId && !!poId,
   })
 
   const { data: matches = [] } = useQuery<PoMatch[]>({
-    queryKey: ['po-matches', companyId, poId],
-    queryFn: () => purchaseOrderService.getMatches(companyId!, poId),
-    enabled: !!companyId && !!poId,
+    queryKey: ['po-matches', clientId, poId],
+    queryFn: () => purchaseOrderService.getMatches(clientId!, poId),
+    enabled: !!clientId && !!poId,
   })
 
   const statusMutation = useMutation({
-    mutationFn: (status: string) => purchaseOrderService.update(companyId!, poId, { status }),
+    mutationFn: (status: string) => purchaseOrderService.update(clientId!, poId, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchase-order', companyId, poId] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-order', clientId, poId] })
       showToast('Status updated.')
     },
   })
 
     const deleteMutation = useMutation({
-    mutationFn: () => purchaseOrderService.remove(companyId!, poId),
+    mutationFn: () => purchaseOrderService.remove(clientId!, poId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchase-orders', companyId] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders', clientId] })
       router.push('/purchase-orders')
     },
   })
   const reviewMutation = useMutation({
     mutationFn: ({ matchId, action }: { matchId: string; action: string }) =>
-      purchaseOrderService.reviewMatch(companyId!, matchId, action),
+      purchaseOrderService.reviewMatch(clientId!, matchId, action),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['po-matches', companyId, poId] })
+      queryClient.invalidateQueries({ queryKey: ['po-matches', clientId, poId] })
       showToast('Match reviewed.')
     },
   })

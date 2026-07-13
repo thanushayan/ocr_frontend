@@ -1,23 +1,23 @@
 import api from '../lib/axios'
 
 export const reportsService = {
-  async spendTrend(companyId: string, year?: number) {
-    const { data } = await api.get(`/api/companies/${companyId}/reports/spend-trend`, { params: { year } })
+  async spendTrend(clientId: string, year?: number) {
+    const { data } = await api.get(`/api/clients/${clientId}/reports/spend-trend`, { params: { year } })
     return data
   },
-  async vendorSpend(companyId: string, year?: number, month?: number) {
-    const { data } = await api.get(`/api/companies/${companyId}/reports/vendor-spend`, { params: { year, month } })
+  async vendorSpend(clientId: string, year?: number, month?: number) {
+    const { data } = await api.get(`/api/clients/${clientId}/reports/vendor-spend`, { params: { year, month } })
     return data
   },
-  async currencyBreakdown(companyId: string, year?: number, month?: number) {
-    const { data } = await api.get(`/api/companies/${companyId}/reports/currency-breakdown`, { params: { year, month } })
+  async currencyBreakdown(clientId: string, year?: number, month?: number) {
+    const { data } = await api.get(`/api/clients/${clientId}/reports/currency-breakdown`, { params: { year, month } })
     return data
   },
-  async yearOverYear(companyId: string) {
-    const { data } = await api.get(`/api/companies/${companyId}/reports/year-over-year`)
+  async yearOverYear(clientId: string) {
+    const { data } = await api.get(`/api/clients/${clientId}/reports/year-over-year`)
     return data
   },
-  exportUrl(companyId: string, type: 'invoices' | 'spend-by-vendor' | 'monthly') {
-    return `/api/companies/${companyId}/reports/${type}.csv`
+  exportUrl(clientId: string, type: 'invoices' | 'spend-by-vendor' | 'monthly') {
+    return `/api/clients/${clientId}/reports/${type}.csv`
   },
 }

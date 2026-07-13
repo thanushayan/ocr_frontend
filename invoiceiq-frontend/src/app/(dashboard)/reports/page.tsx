@@ -30,38 +30,38 @@ function fmt(n: number, currency = 'GBP') {
 }
 
 export default function ReportsPage() {
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
   const year = new Date().getFullYear()
 
   const { data: trend } = useQuery<SpendTrend>({
-    queryKey: ['report-spend-trend', companyId, year],
-    queryFn: () => reportsService.spendTrend(companyId!, year),
-    enabled: !!companyId,
+    queryKey: ['report-spend-trend', clientId, year],
+    queryFn: () => reportsService.spendTrend(clientId!, year),
+    enabled: !!clientId,
   })
 
   const { data: vendorSpend } = useQuery<VendorSpend>({
-    queryKey: ['report-vendor-spend', companyId, year],
-    queryFn: () => reportsService.vendorSpend(companyId!, year),
-    enabled: !!companyId,
+    queryKey: ['report-vendor-spend', clientId, year],
+    queryFn: () => reportsService.vendorSpend(clientId!, year),
+    enabled: !!clientId,
   })
 
   const { data: currency } = useQuery<CurrencyBreakdown>({
-    queryKey: ['report-currency', companyId, year],
-    queryFn: () => reportsService.currencyBreakdown(companyId!, year),
-    enabled: !!companyId,
+    queryKey: ['report-currency', clientId, year],
+    queryFn: () => reportsService.currencyBreakdown(clientId!, year),
+    enabled: !!clientId,
   })
 
   const { data: yoy } = useQuery<Yoy>({
-    queryKey: ['report-yoy', companyId],
-    queryFn: () => reportsService.yearOverYear(companyId!),
-    enabled: !!companyId,
+    queryKey: ['report-yoy', clientId],
+    queryFn: () => reportsService.yearOverYear(clientId!),
+    enabled: !!clientId,
   })
 
   const base = trend?.baseCurrency ?? 'GBP'
 
   // CSV download via axios (auth header) → blob
   const downloadCsv = async (type: 'invoices' | 'spend-by-vendor' | 'monthly') => {
-    const res = await api.get(reportsService.exportUrl(companyId!, type), { responseType: 'blob' })
+    const res = await api.get(reportsService.exportUrl(clientId!, type), { responseType: 'blob' })
     const url = window.URL.createObjectURL(new Blob([res.data]))
     const a = document.createElement('a')
     a.href = url

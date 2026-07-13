@@ -83,38 +83,38 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 }
 
 export default function AnalyticsPage() {
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
   const [year, setYear]   = useState(CURRENT_YEAR)
   const [month, setMonth] = useState(new Date().getMonth() + 1)
 
   const { data: spendTrend, isLoading: l1 } = useQuery({
-    queryKey: ['analytics-spend-trend', companyId, year],
-    queryFn: () => analyticsService.getSpendTrend(companyId!, year),
-    enabled: !!companyId,
+    queryKey: ['analytics-spend-trend', clientId, year],
+    queryFn: () => analyticsService.getSpendTrend(clientId!, year),
+    enabled: !!clientId,
   })
 
   const { data: vendorSpend, isLoading: l2 } = useQuery({
-    queryKey: ['analytics-vendor-spend', companyId, year, month],
-    queryFn: () => analyticsService.getVendorSpend(companyId!, year, month),
-    enabled: !!companyId,
+    queryKey: ['analytics-vendor-spend', clientId, year, month],
+    queryFn: () => analyticsService.getVendorSpend(clientId!, year, month),
+    enabled: !!clientId,
   })
 
   const { data: currencyBreakdown, isLoading: l3 } = useQuery({
-    queryKey: ['analytics-currency', companyId, year, month],
-    queryFn: () => analyticsService.getCurrencyBreakdown(companyId!, year, month),
-    enabled: !!companyId,
+    queryKey: ['analytics-currency', clientId, year, month],
+    queryFn: () => analyticsService.getCurrencyBreakdown(clientId!, year, month),
+    enabled: !!clientId,
   })
 
   const { data: budgetVsActual, isLoading: l4 } = useQuery({
-    queryKey: ['analytics-budget', companyId],
-    queryFn: () => analyticsService.getBudgetVsActual(companyId!),
-    enabled: !!companyId,
+    queryKey: ['analytics-budget', clientId],
+    queryFn: () => analyticsService.getBudgetVsActual(clientId!),
+    enabled: !!clientId,
   })
 
   const { data: yoy, isLoading: l5 } = useQuery({
-    queryKey: ['analytics-yoy', companyId],
-    queryFn: () => analyticsService.getYearOverYear(companyId!),
-    enabled: !!companyId,
+    queryKey: ['analytics-yoy', clientId],
+    queryFn: () => analyticsService.getYearOverYear(clientId!),
+    enabled: !!clientId,
   })
 
   // Normalise data — backend may return arrays or wrapped objects

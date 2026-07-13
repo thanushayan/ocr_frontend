@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../hooks/useAuth'
 import { toast } from 'sonner'
-import { Eye, EyeOff, Loader2, ScanText, Mail, Lock, User, Building2, LockKeyhole, CheckCircle } from 'lucide-react'
+import { Eye, EyeOff, Loader2, ScanText, Mail, Lock, User, Phone, LockKeyhole, CheckCircle } from 'lucide-react'
 
 // படிவம் சரிபார்க்கும் விதிகள்
 const registerSchema = z.object({
@@ -15,7 +15,7 @@ const registerSchema = z.object({
   email:           z.string().min(1, 'Email is required.').email('Enter a valid email address.'),
   password:        z.string().min(8, 'Use 8+ characters with a number and symbol.').regex(/[0-9]/, 'Use 8+ characters with a number and symbol.').regex(/[^a-zA-Z0-9]/, 'Use 8+ characters with a number and symbol.'),
   confirmPassword: z.string().min(1, 'Please confirm your password.'),
-  companyName:     z.string().min(1, 'Company name is required.'),
+  phone:           z.string().optional(),
   agreeTerms:      z.boolean().refine(v => v === true, 'You must accept the Terms to continue.'),
 }).refine(d => d.password === d.confirmPassword, {
   message: 'Passwords do not match.',
@@ -80,13 +80,13 @@ export default function RegisterPage() {
     setIsLoading(true)
     try {
       await registerUser({
-        fullName:    data.fullName,
-        email:       data.email,
-        password:    data.password,
-        companyName: data.companyName,
+        fullName: data.fullName,
+        email:    data.email,
+        password: data.password,
+        phone:    data.phone || undefined,
       })
       toast.success('Account created! Welcome to InvoiceIQ')
-      router.push('/dashboard')
+      router.push('/clients')
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } }
       toast.error(err?.response?.data?.message ?? 'Registration failed. Please try again.')
@@ -104,7 +104,7 @@ export default function RegisterPage() {
   const iconColor = (hasError: boolean, isValid: boolean) =>
     hasError ? 'text-red-400' : isValid ? 'text-green-500' : 'text-gray-400'
 
-  const allFilled = watch('fullName') && watch('email') && watch('password') && watch('confirmPassword') && watch('companyName')
+  const allFilled = watch('fullName') && watch('email') && watch('password') && watch('confirmPassword')
 
   return (
     <div
@@ -229,20 +229,20 @@ export default function RegisterPage() {
             {errors.confirmPassword && <span className="text-xs text-red-500 flex items-center gap-1">⚠ {errors.confirmPassword.message}</span>}
           </div>
 
-          {/* Company Name */}
+          {/* Phone (optional) */}
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-gray-600">Company name</label>
-            <div className={fieldClass(!!errors.companyName, !errors.companyName && !!watch('companyName'))}>
-              <Building2 size={16} className={iconColor(!!errors.companyName, !errors.companyName && !!watch('companyName'))} />
+            <label className="text-sm font-semibold text-gray-600">Phone <span className="font-normal text-gray-400">(optional)</span></label>
+            <div className={fieldClass(!!errors.phone, !errors.phone && !!watch('phone'))}>
+              <Phone size={16} className={iconColor(!!errors.phone, !errors.phone && !!watch('phone'))} />
               <input
-                {...register('companyName')}
-                type="text"
-                placeholder="Acme Ltd"
+                {...register('phone')}
+                type="tel"
+                placeholder="07700 900000"
                 className="flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder-gray-400"
               />
-              {!errors.companyName && watch('companyName') && <CheckCircle size={16} className="text-green-500 shrink-0" />}
+              {!errors.phone && watch('phone') && <CheckCircle size={16} className="text-green-500 shrink-0" />}
             </div>
-            {errors.companyName && <span className="text-xs text-red-500 flex items-center gap-1">⚠ {errors.companyName.message}</span>}
+            {errors.phone && <span className="text-xs text-red-500 flex items-center gap-1">⚠ {errors.phone.message}</span>}
           </div>
 
           {/* Terms checkbox */}

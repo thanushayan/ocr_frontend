@@ -92,7 +92,7 @@ function formatDate(dateStr?: string) {
 
 export default function InvoicesPage() {
   const router = useRouter()
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [search, setSearch]     = useState('')
@@ -100,9 +100,9 @@ export default function InvoicesPage() {
   const PAGE_SIZE = 20
 
   const { data, isLoading } = useQuery<PagedInvoices>({
-    queryKey: ['invoices', companyId, page, search],
-    queryFn: () => invoiceService.list(companyId!, { page, pageSize: PAGE_SIZE, search }),
-    enabled: !!companyId,
+    queryKey: ['invoices', clientId, page, search],
+    queryFn: () => invoiceService.list(clientId!, { page, pageSize: PAGE_SIZE, search }),
+    enabled: !!clientId,
   })
 
   // API data → table rows, dummy fallback
@@ -158,7 +158,7 @@ export default function InvoicesPage() {
       </div>
 
       {/* Company-wide OCR confidence + threshold control */}
-      {companyId && <CompanyOcrConfidenceCard companyId={companyId} />}
+      {clientId && <CompanyOcrConfidenceCard clientId={clientId} />}
 
       {/* Filter bar */}
       <div className="border-t border-gray-200 pt-4 flex items-center gap-2.5 flex-wrap">

@@ -82,7 +82,7 @@ export default function LoginPage() {
   try {
     await login(data)                          // ✅ result expect பண்ணாதே
     toast.success('Welcome back! Login successful')
-    router.push('/dashboard')
+    router.push('/clients')                    // accountant must pick a client first
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } }
     setLoginError(err?.response?.data?.message ?? 'Incorrect email or password. Please try again.')

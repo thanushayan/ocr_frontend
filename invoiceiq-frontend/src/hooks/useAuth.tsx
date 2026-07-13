@@ -4,13 +4,22 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { useRouter } from 'next/navigation'
 import { authLib } from '../lib/auth'
 import { authService } from '../services/auth.service'
-import { User, LoginRequest, RegisterRequest, UpdateProfileRequest } from '../types/auth.types'
+import { User, Client, LoginRequest, RegisterRequest, UpdateProfileRequest } from '../types/auth.types'
 
 interface AuthContextType {
   user: User | null
-  companyId: string | null
+  accountantId: string | null
+  plan: string | null
   isLoading: boolean
   isAuthenticated: boolean
+
+  // Active client (selected off-licence shop)
+  activeClient: Client | null
+  activeClientId: string | null
+  hasActiveClient: boolean
+  setActiveClient: (client: Client) => void
+  clearActiveClient: () => void
+
   login: (data: LoginRequest) => Promise<void>
   register: (data: RegisterRequest) => Promise<void>
   logout: () => Promise<void>
@@ -22,6 +31,7 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [activeClient, setActiveClientState] = useState<Client | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
@@ -34,6 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authLib.isLoggedIn()) {
         const cached = authLib.getUser<User>()
         if (cached) setUser(cached)
+
+        const cachedClient = authLib.getActiveClient()
+        if (cachedClient) setActiveClientState(cachedClient)
 
         const me = await authService.getMe()
         setUser(me)
@@ -70,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       authLib.clearAll()
       setUser(null)
+      setActiveClientState(null)
       router.push('/login')
     }
   }
@@ -86,13 +100,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authLib.setUser(me)
   }
 
+  function setActiveClient(client: Client): void {
+    authLib.setActiveClient(client)
+    setActiveClientState(client)
+  }
+
+  function clearActiveClient(): void {
+    authLib.clearActiveClient()
+    setActiveClientState(null)
+  }
+
   return (
     <AuthContext.Provider
       value={{
         user,
-        companyId: user?.companyId ?? null,
+        accountantId: user?.id ?? null,
+        plan: user?.plan ?? null,
         isLoading,
         isAuthenticated: !!user,
+        activeClient,
+        activeClientId: activeClient?.id ?? null,
+        hasActiveClient: !!activeClient,
+        setActiveClient,
+        clearActiveClient,
         login,
         register,
         logout,

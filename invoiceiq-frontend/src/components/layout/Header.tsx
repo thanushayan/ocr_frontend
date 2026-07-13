@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../hooks/useAuth'
+import ClientSelector from '../ClientSelector'
 import { Bell, ChevronDown, LogOut, User, Settings, CheckCheck, X, FileText, XCircle, Clock, ScanText } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -187,17 +188,8 @@ export default function Header() {
   return (
     <header className="h-16 shrink-0 bg-white border-b border-gray-200 flex items-center gap-4 px-6">
 
-      {/* Company name */}
-      <button className="flex items-center gap-2.5 px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-        <div className="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-extrabold shrink-0"
-          style={{ background: 'linear-gradient(135deg, #7C3AED, #4C1D95)' }}>
-          {(user?.fullName ?? 'C')[0].toUpperCase()}
-        </div>
-        <span className="text-sm font-bold text-gray-900">
-          {user ? 'My Company' : 'InvoiceIQ'}
-        </span>
-        <ChevronDown size={16} className="text-gray-400" />
-      </button>
+      {/* Active client (off-licence shop) selector */}
+      <ClientSelector />
 
       {/* Right side */}
       <div className="ml-auto flex items-center gap-2">

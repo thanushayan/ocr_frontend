@@ -66,7 +66,7 @@ function StepIndicator({ current }: { current: number }) {
 // ════════════════════════════════════════
 // STEP 1: Upload
 // ════════════════════════════════════════
-function StepUpload({ companyId, onNext }: { companyId?: string | null; onNext: (file: File) => void }) {
+function StepUpload({ clientId, onNext }: { clientId?: string | null; onNext: (file: File) => void }) {
   const [dragging, setDragging] = useState(false)
   const [file, setFile]         = useState<File | null>(null)
   const [dup, setDup]           = useState<DuplicateCheckResult | null>(null)
@@ -77,10 +77,10 @@ function StepUpload({ companyId, onNext }: { companyId?: string | null; onNext: 
   const pickFile = async (f: File) => {
     setFile(f)
     setDup(null)
-    if (!companyId) return
+    if (!clientId) return
     setChecking(true)
     try {
-      const result = await invoiceService.checkDuplicate(companyId, { fileName: f.name })
+      const result = await invoiceService.checkDuplicate(clientId, { fileName: f.name })
       setDup(result.isDuplicate ? result : null)
     } catch {
       // ignore — a failed duplicate check must not stop the user uploading
@@ -192,9 +192,9 @@ function StepUpload({ companyId, onNext }: { companyId?: string | null; onNext: 
 // ════════════════════════════════════════
 // STEP 2: OCR Processing
 // ════════════════════════════════════════
-function StepProcessing({ file, companyId, onNext }: {
+function StepProcessing({ file, clientId, onNext }: {
   file: File
-  companyId: string
+  clientId: string
   onNext: (invoiceId: string, fileUrl: string) => void
 }) {
   const [stepIdx, setStepIdx] = useState(0)
@@ -216,7 +216,7 @@ function StepProcessing({ file, companyId, onNext }: {
     const run = async () => {
       try {
         animateTo(0, 15, () => {})
-        const uploadResult = await invoiceService.upload(companyId, file)
+        const uploadResult = await invoiceService.upload(clientId, file)
         const invoiceId = uploadResult.invoice?.id
         const fileUrl   = uploadResult.invoice?.fileUrl ?? uploadResult.file?.fileUrl ?? ''
         if (!invoiceId) throw new Error('Upload failed — no invoice ID returned')
@@ -365,10 +365,10 @@ const DUMMY_FIELDS: OcrField[] = [
   { label: 'Total amount',   value: '—',   confidence: 90, mono: true  },
 ]
 
-function StepReview({ invoiceId, fileUrl, companyId, onNext, onBack }: {
+function StepReview({ invoiceId, fileUrl, clientId, onNext, onBack }: {
   invoiceId: string
   fileUrl: string
-  companyId: string
+  clientId: string
   onNext: (summary: SummaryData) => void
   onBack: () => void
 }) {
@@ -394,7 +394,7 @@ function StepReview({ invoiceId, fileUrl, companyId, onNext, onBack }: {
           if (conf?.overallConfidence) setOverallConf(Math.round(conf.overallConfidence * 100))
         } else {
           // Fallback: get invoice data directly
-          const inv = await invoiceService.getById(companyId, invoiceId)
+          const inv = await invoiceService.getById(clientId, invoiceId)
           setOcrFields([
             { label: 'Vendor name',    value: (inv as any)?.extractedVendorName ?? (inv as any)?.vendorName ?? '—', confidence: 90, mono: false },
             { label: 'Invoice number', value: (inv as any)?.invoiceNumber ?? '—',  confidence: 90, mono: true  },
@@ -414,7 +414,7 @@ function StepReview({ invoiceId, fileUrl, companyId, onNext, onBack }: {
     }
 
     loadData()
-  }, [invoiceId, companyId])
+  }, [invoiceId, clientId])
 
   const getField = (keyword: string) =>
     ocrFields.find(f => f.label.toLowerCase().includes(keyword.toLowerCase()))?.value ?? '—'
@@ -638,7 +638,7 @@ function StepSubmit({ invoiceId, summary, onBack }: {
 // Main Page
 // ════════════════════════════════════════
 export default function UploadPage() {
-  const { companyId }             = useAuth()
+  const { activeClientId: clientId } = useAuth()
   const [step, setStep]           = useState(1)
   const [file, setFile]           = useState<File | null>(null)
   const [invoiceId, setInvoiceId] = useState<string>('')
@@ -661,11 +661,11 @@ export default function UploadPage() {
       <StepIndicator current={step} />
 
       {step === 1 && (
-        <StepUpload companyId={companyId} onNext={(f) => { setFile(f); setStep(2) }} />
+        <StepUpload clientId={clientId} onNext={(f) => { setFile(f); setStep(2) }} />
       )}
-      {step === 2 && file && companyId && (
+      {step === 2 && file && clientId && (
         <StepProcessing
-          file={file} companyId={companyId}
+          file={file} clientId={clientId}
           onNext={(id, url) => { setInvoiceId(id); setFileUrl(url); setStep(3) }}
         />
       )}
@@ -673,7 +673,7 @@ export default function UploadPage() {
         <StepReview
           invoiceId={invoiceId}
           fileUrl={fileUrl}
-          companyId={companyId!}
+          clientId={clientId!}
           onNext={(s) => { setSummary(s); setStep(4) }}
           onBack={() => setStep(1)}
         />

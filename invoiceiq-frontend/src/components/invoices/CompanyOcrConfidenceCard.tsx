@@ -8,14 +8,14 @@ import { invoiceService } from '../../services/invoice.service'
 
 // Company-wide OCR confidence analytics + threshold control.
 // Wires GET /ocr/confidence-report and PUT /ocr/confidence-threshold.
-export function CompanyOcrConfidenceCard({ companyId }: { companyId: string }) {
+export function CompanyOcrConfidenceCard({ clientId }: { clientId: string }) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['companyOcrConfidence', companyId],
-    queryFn: () => invoiceService.getCompanyConfidenceReport(companyId),
-    enabled: open && !!companyId, // lazy: only fetch when expanded
+    queryKey: ['companyOcrConfidence', clientId],
+    queryFn: () => invoiceService.getCompanyConfidenceReport(clientId),
+    enabled: open && !!clientId, // lazy: only fetch when expanded
   })
 
   const [threshold, setThreshold] = useState<number | null>(null)
@@ -23,14 +23,14 @@ export function CompanyOcrConfidenceCard({ companyId }: { companyId: string }) {
   const thresholdPct = threshold ?? Math.round((data?.threshold ?? 0.8) * 100)
 
   const save = useMutation({
-    mutationFn: () => invoiceService.setConfidenceThreshold(companyId, {
+    mutationFn: () => invoiceService.setConfidenceThreshold(clientId, {
       threshold: Math.min(1, Math.max(0, thresholdPct / 100)),
       autoFlagLowConfidence: autoFlag,
     }),
     onSuccess: () => {
       toast.success('Confidence threshold updated.')
       setThreshold(null)
-      qc.invalidateQueries({ queryKey: ['companyOcrConfidence', companyId] })
+      qc.invalidateQueries({ queryKey: ['companyOcrConfidence', clientId] })
     },
     onError: () => toast.error('Could not update the threshold.'),
   })

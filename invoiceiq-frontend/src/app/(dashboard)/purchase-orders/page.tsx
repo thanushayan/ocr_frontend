@@ -63,8 +63,8 @@ function fmtDate(d?: string) {
 // ── Create PO Modal ───────────────────────────────────────────────────────────
 interface LineItem { description: string; quantity: string; unitPrice: string; unit: string }
 
-function CreatePoModal({ companyId, onClose, onSuccess }: {
-  companyId: string; onClose: () => void; onSuccess: () => void
+function CreatePoModal({ clientId, onClose, onSuccess }: {
+  clientId: string; onClose: () => void; onSuccess: () => void
 }) {
   const [form, setForm] = useState({
     poNumber: '', description: '', currency: 'GBP',
@@ -91,7 +91,7 @@ function CreatePoModal({ companyId, onClose, onSuccess }: {
   const valid = !!(form.poNumber.trim()) && items.every(it => !!(it.description.trim()) && !!(it.quantity) && !!(it.unitPrice))
 
   const mutation = useMutation({
-    mutationFn: () => api.post(`/api/companies/${companyId}/purchase-orders`, {
+    mutationFn: () => api.post(`/api/clients/${clientId}/purchase-orders`, {
       poNumber: form.poNumber,
       description: form.description || undefined,
       currency: form.currency,
@@ -256,7 +256,7 @@ function CreatePoModal({ companyId, onClose, onSuccess }: {
 const FILTERS = ['All', 'Open', 'Draft', 'Closed', 'Cancelled']
 
 export default function PurchaseOrdersPage() {
-  const { companyId } = useAuth()
+  const { activeClientId: clientId } = useAuth()
   const router = useRouter()
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('All')
@@ -265,12 +265,12 @@ export default function PurchaseOrdersPage() {
   const [toast, setToast] = useState<string | null>(null)
 
   const { data: pos = [], isLoading } = useQuery<PurchaseOrder[]>({
-    queryKey: ['purchase-orders', companyId],
+    queryKey: ['purchase-orders', clientId],
     queryFn: async () => {
-      const res = await api.get(`/api/companies/${companyId}/purchase-orders`)
+      const res = await api.get(`/api/clients/${clientId}/purchase-orders`)
       return res.data
     },
-    enabled: !!companyId,
+    enabled: !!clientId,
   })
 
   function showToast(msg: string) {
@@ -428,12 +428,12 @@ export default function PurchaseOrdersPage() {
         </div>
       </div>
 
-      {showModal && companyId && (
+      {showModal && clientId && (
         <CreatePoModal
-          companyId={companyId}
+          clientId={clientId}
           onClose={() => setShowModal(false)}
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ['purchase-orders', companyId] })
+            queryClient.invalidateQueries({ queryKey: ['purchase-orders', clientId] })
             showToast('Purchase order created.')
           }}
         />

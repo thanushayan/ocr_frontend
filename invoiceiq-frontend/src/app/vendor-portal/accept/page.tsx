@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import vendorApi from '../../../lib/vendorApi'
 
-export default function AcceptInvitePage() {
+function AcceptInviteForm() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const token        = searchParams.get('token') ?? ''
@@ -235,5 +235,12 @@ export default function AcceptInvitePage() {
         </div>
       </div>
     </div>
+  )
+}
+export default function AcceptInvitePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
+      <AcceptInviteForm />
+    </Suspense>
   )
 }

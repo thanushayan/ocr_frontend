@@ -1,31 +1,42 @@
-export interface User {
+// ── Accountant (the logged-in user) ─────────────────────────────────────────
+export interface AccountantProfile {
   id: string
   fullName: string
   email: string
-  isActive: boolean
-  createdAt: string
-  avatarUrl?: string
   phone?: string
-  jobTitle?: string
-  preferredLanguage: string
+  practiceAddress?: string
+  icaewNumber?: string
+  aatnumber?: string
+  mtdAgentReference?: string
   twoFactorEnabled: boolean
-  twoFactorMethod?: string
   lastLoginAt?: string
-  companyId?: string
-  companyName?: string
+  totalClients: number
+  plan: string
+  subscriptionStatus: string
+  trialEndsAt?: string
+  maxClients: number
+}
+
+// App-wide user shape — the accountant profile plus optional presentation
+// fields still used by profile/settings screens.
+export interface User extends AccountantProfile {
+  isActive?: boolean
+  createdAt?: string
+  avatarUrl?: string
+  jobTitle?: string
+  preferredLanguage?: string
+  twoFactorMethod?: string
   role?: string
 }
 
 export interface AuthResponse {
   token: string
   refreshToken?: string
+  accountantId: string
   fullName: string
   email: string
-  userId: string
+  plan: string           // 'Starter' | 'Pro' | 'Unlimited'
   expiresAt: string
-  companyId?: string
-  companyName?: string
-  role?: string
 }
 
 export interface LoginRequest {
@@ -37,7 +48,7 @@ export interface RegisterRequest {
   fullName: string
   email: string
   password: string
-  companyName: string
+  phone?: string
 }
 
 export interface UpdateProfileRequest {
@@ -46,7 +57,57 @@ export interface UpdateProfileRequest {
   jobTitle?: string
   preferredLanguage?: string
   avatarUrl?: string
+  practiceAddress?: string
+  icaewNumber?: string
+  aatnumber?: string
+  mtdAgentReference?: string
 }
+
+// ── Client (off-licence shop managed by the accountant) ─────────────────────
+export interface Client {
+  id: string
+  accountantId: string
+  businessName: string
+  tradingName?: string
+  clientType: string
+  ownerFullName?: string
+  ownerEmail?: string
+  ownerPhone?: string
+  businessAddress?: string
+  businessPostcode?: string
+  localAuthority?: string
+  vatRegistrationNumber?: string
+  awrsUrn?: string
+  monthlyFee: number
+  isActive: boolean
+  onboardedAt: string
+}
+
+export interface ClientSummary {
+  clientId: string
+  businessName: string
+  pendingInvoices: number
+  vatReturnDue?: string
+  premisesLicenceExpiry?: string
+  complianceAlerts: number
+  lastActivityAt?: string
+}
+
+export interface CreateClientRequest {
+  businessName: string
+  tradingName?: string
+  clientType?: string
+  ownerFullName?: string
+  ownerEmail?: string
+  ownerPhone?: string
+  businessAddress?: string
+  businessPostcode?: string
+  localAuthority?: string
+  vatRegistrationNumber?: string
+  awrsUrn?: string
+  monthlyFee?: number
+}
+
 // ── Token refresh / revoke ──────────────────────────────────────────────────
 export interface RefreshTokenRequest {
   token: string

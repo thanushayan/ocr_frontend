@@ -44,7 +44,7 @@ api.interceptors.response.use(
     try {
       const { data } = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/auth/refresh`,
-        { token: refreshToken }
+        { refreshToken }
       )
       authLib.setTokens(data.token, data.refreshToken)
       orig.headers.Authorization = `Bearer ${data.token}`
@@ -60,5 +60,12 @@ api.interceptors.response.use(
     }
   }
 )
+
+// Helper: build a URL scoped to the active client (selected off-licence shop)
+export const clientUrl = (path: string): string => {
+  const activeClientId = authLib.getActiveClientId()
+  if (!activeClientId) throw new Error('No active client selected')
+  return `/api/clients/${activeClientId}${path}`
+}
 
 export default api

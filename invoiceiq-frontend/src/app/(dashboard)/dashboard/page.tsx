@@ -93,12 +93,12 @@ function KpiCard({
 }
 
 export default function DashboardPage() {
-  const { companyId } = useAuth()
+  const { activeClientId: clientId, activeClient } = useAuth()
 
   const { data, isLoading } = useQuery<DashboardData>({
-    queryKey: ['dashboard', companyId],
-    queryFn: () => dashboardService.getDashboard(companyId!),
-    enabled: !!companyId,
+    queryKey: ['dashboard', clientId],
+    queryFn: () => dashboardService.getDashboard(clientId!),
+    enabled: !!clientId,
   })
 
   const formatCurrency = (amount: number) =>
@@ -145,7 +145,10 @@ export default function DashboardPage() {
       {/* பக்கம் தலைப்பு */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Welcome back! Here&apos;s what&apos;s happening with your invoices.</p>
+        <p className="text-sm text-gray-500 mt-1">
+          {activeClient ? <>Viewing: <span className="font-semibold text-gray-700">{activeClient.businessName}</span> — </> : null}
+          Welcome back! Here&apos;s what&apos;s happening with your invoices.
+        </p>
       </div>
 
       {/* KPI அட்டைகள் */}

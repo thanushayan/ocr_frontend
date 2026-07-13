@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '../../../hooks/useAuth'
 import { approvalsService } from '../../../services/approvals.service'
 import {
   CheckCircle, XCircle, Clock, AlertCircle, ChevronRight,
@@ -18,7 +17,6 @@ interface ActionModal {
 }
 
 export default function ApprovalsPage() {
-  const { companyId } = useAuth()
   const qc = useQueryClient()
 
   const [search, setSearch]         = useState('')

@@ -22,7 +22,7 @@ export const authService = {
     return data
   },
   async updateProfile(body: UpdateProfileRequest): Promise<User> {
-    const { data } = await api.patch<User>('/api/auth/me', body)
+    const { data } = await api.put<User>('/api/auth/me', body)
     return data
   },
 
@@ -43,7 +43,7 @@ export const authService = {
   async refresh(refreshToken: string): Promise<RefreshResponse> {
     const { data } = await axios.post<RefreshResponse>(
       `${process.env.NEXT_PUBLIC_API_URL}/api/auth/refresh`,
-      { token: refreshToken }
+      { refreshToken }
     )
     return data
   },
