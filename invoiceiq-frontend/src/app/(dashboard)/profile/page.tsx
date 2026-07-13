@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../../hooks/useAuth'
 import api from '../../../lib/axios'
+import { TwoFactorAuthRow } from '../../../components/security/TwoFactorAuthRow'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface UserProfile {
@@ -145,9 +146,9 @@ function ProfileTab({
     setTitle(profile.jobTitle ?? '')
   }, [profile])
 
-  // PATCH /api/auth/me
+  // PUT /api/auth/me
   const mutation = useMutation({
-    mutationFn: () => api.patch('/api/auth/me', { fullName: name, phone, jobTitle: title }),
+    mutationFn: () => api.put('/api/auth/me', { fullName: name, phone, jobTitle: title }),
     onSuccess: () => onSave('Profile saved.'),
     onError: () => onSave('Failed to save profile.'),
   })
@@ -200,141 +201,17 @@ function ProfileTab({
 }
 
 // ── Tab 2: Security ────────────────────────────────────────────────────────────
-function QRSetup({
-  onComplete, onCancel,
-}: {
-  onComplete: () => void; onCancel: () => void
-}) {
-  const [qrUrl, setQrUrl]   = useState<string | null>(null)
-  const [secret, setSecret] = useState('')
-  const [code, setCode]     = useState(['', '', '', '', '', ''])
-  const [verifying, setVerifying] = useState(false)
-  const [error, setError]   = useState('')
-  const refs = Array.from({ length: 6 }, () => useRef<HTMLInputElement>(null))
-
-  useEffect(() => {
-    // POST /api/auth/2fa/setup
-    api.post('/api/auth/2fa/setup').then(r => {
-      setQrUrl(r.data.qrCodeUrl ?? r.data.qrCode ?? null)
-      setSecret(r.data.secret ?? r.data.manualKey ?? '')
-    })
-  }, [])
-
-  const setDigit = (i: number, val: string) => {
-    if (!/^\d?$/.test(val)) return
-    const next = [...code]; next[i] = val; setCode(next)
-    if (val && i < 5) refs[i + 1]?.current?.focus()
-  }
-
-  const handleKey = (i: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !code[i] && i > 0) refs[i - 1]?.current?.focus()
-  }
-
-  const complete = code.every(d => d !== '')
-
-  const verify = async () => {
-    setVerifying(true)
-    setError('')
-    try {
-      // POST /api/auth/2fa/verify
-      await api.post('/api/auth/2fa/verify', { code: code.join('') })
-      onComplete()
-    } catch {
-      setError('Invalid code. Please try again.')
-      setCode(['', '', '', '', '', ''])
-      refs[0]?.current?.focus()
-    } finally {
-      setVerifying(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-gray-600">
-        ℹ️ Scan the QR code below with your authenticator app (Google Authenticator, Authy, 1Password, etc.)
-      </div>
-
-      <div className="flex gap-6 flex-wrap">
-        {/* QR code */}
-        <div className="flex-shrink-0 p-2 border border-gray-200 rounded-xl bg-white">
-          {qrUrl
-            ? <img src={qrUrl} alt="2FA QR Code" className="w-36 h-36" />
-            : <div className="w-36 h-36 bg-gray-100 rounded-lg grid place-items-center text-gray-400 text-xs">Loading…</div>
-          }
-        </div>
-
-        <div className="flex-1 min-w-[200px] flex flex-col gap-4">
-          {secret && (
-            <div>
-              <div className="text-xs font-semibold text-gray-600 mb-1.5">Can't scan? Enter this key manually</div>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm font-mono font-bold tracking-widest text-gray-900">
-                  {secret}
-                </code>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <div className="text-xs font-semibold text-gray-600 mb-2">Enter the 6-digit code to verify</div>
-            <div className="flex gap-2">
-              {code.map((d, i) => (
-                <input
-                  key={i}
-                  ref={refs[i]}
-                  value={d}
-                  onChange={e => setDigit(i, e.target.value)}
-                  onKeyDown={e => handleKey(i, e)}
-                  maxLength={1}
-                  style={{
-                    border: `1.5px solid ${d ? '#3b82f6' : '#d1d5db'}`,
-                    boxShadow: d ? '0 0 0 3px rgba(59,130,246,.15)' : 'none',
-                  }}
-                  className="w-11 h-14 text-center text-2xl font-bold font-mono rounded-xl outline-none bg-white text-gray-900"
-                />
-              ))}
-            </div>
-            {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
-          </div>
-
-          <div className="flex gap-2.5 mt-1">
-            <button
-              onClick={onCancel}
-              className="h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={verify}
-              disabled={!complete || verifying}
-              style={{ background: complete ? '#22c55e' : '#e5e7eb', color: complete ? '#fff' : '#9ca3af' }}
-              className="inline-flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-bold disabled:cursor-not-allowed"
-            >
-              {verifying
-                ? <><span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" /> Verifying…</>
-                : '✓ Verify & enable'
-              }
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function SecurityTab({
   profile, onSave,
 }: {
   profile: UserProfile; onSave: (msg: string) => void
 }) {
-  const queryClient = useQueryClient()
   const [cur,  setCur]  = useState('')
   const [pw1,  setPw1]  = useState('')
   const [pw2,  setPw2]  = useState('')
   const [showCur, setShowCur] = useState(false)
   const [showPw1, setShowPw1] = useState(false)
   const [showPw2, setShowPw2] = useState(false)
-  const [setupQR, setSetupQR] = useState(false)
   const str = pwStrength(pw1)
 
   // POST /api/auth/change-password
@@ -342,13 +219,6 @@ function SecurityTab({
     mutationFn: () => api.post('/api/auth/change-password', { currentPassword: cur, newPassword: pw1 }),
     onSuccess: () => { setCur(''); setPw1(''); setPw2(''); onSave('Password updated.') },
     onError: () => onSave('Incorrect current password.'),
-  })
-
-  // DELETE /api/auth/2fa
-  const disable2faMutation = useMutation({
-    mutationFn: () => api.delete('/api/auth/2fa'),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['me'] }); onSave('2FA disabled.') },
-    onError: () => onSave('Failed to disable 2FA.'),
   })
 
   function PwField({
@@ -448,54 +318,7 @@ function SecurityTab({
           </span>
         }
       >
-        {setupQR ? (
-          <QRSetup
-            onComplete={() => {
-              setSetupQR(false)
-              queryClient.invalidateQueries({ queryKey: ['me'] })
-              onSave('Two-factor authentication enabled.')
-            }}
-            onCancel={() => setSetupQR(false)}
-          />
-        ) : profile.twoFactorEnabled ? (
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-3.5 px-4 py-3.5 bg-green-50 border border-green-200 rounded-xl">
-              <span className="text-3xl">✅</span>
-              <div>
-                <div className="text-sm font-bold text-gray-900">2FA is active on your account.</div>
-                <div className="text-xs text-gray-500 mt-0.5">
-                  You'll be asked for a one-time code each time you sign in.
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2.5">
-              <button
-                onClick={() => {
-                  if (confirm('Disable two-factor authentication?')) {
-                    disable2faMutation.mutate()
-                  }
-                }}
-                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50"
-                style={{ border: '1.5px solid #fca5a5', background: '#fff1f2' }}
-              >
-                🔓 Disable 2FA
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3.5">
-            <p className="text-sm text-gray-600 max-w-lg">
-              Two-factor authentication adds a second verification step when you sign in,
-              protecting your account even if your password is compromised.
-            </p>
-            <button
-              onClick={() => setSetupQR(true)}
-              className="inline-flex items-center gap-2 h-10 px-5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 w-fit"
-            >
-              🔐 Set up two-factor authentication
-            </button>
-          </div>
-        )}
+        <TwoFactorAuthRow />
       </SectionCard>
     </div>
   )
