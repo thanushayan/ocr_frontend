@@ -3,14 +3,15 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Upload, Eye, Download, Trash2,
   ChevronLeft, ChevronRight, AlertCircle,
-  Check, Filter, Calendar, Store, CreditCard, X
+  Check, Filter, Calendar, Store, CreditCard, X, AlertTriangle
 } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 import { invoiceService } from '../../../services/invoice.service'
+import { duplicateService, DuplicateFlag } from '../../../services/duplicate.service'
 import { PagedInvoices } from '../../../types/invoice.types'
 
 // Dummy fallback data
@@ -89,6 +90,69 @@ function formatDate(dateStr?: string) {
   })
 }
 
+
+// ── Duplicate flags review queue ───────────────────────────────────────────────
+function DuplicatesCard({ clientId }: { clientId: string }) {
+  const queryClient = useQueryClient()
+
+  const { data: flags = [] } = useQuery<DuplicateFlag[]>({
+    queryKey: ['duplicate-flags', clientId],
+    queryFn: () => duplicateService.getAll(clientId),
+  })
+
+  const reviewMutation = useMutation({
+    mutationFn: ({ flagId, action }: { flagId: string; action: 'Confirmed' | 'Dismissed' }) =>
+      duplicateService.review(clientId, flagId, action),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['duplicate-flags', clientId] }),
+  })
+
+  const pending = flags.filter(f => f.status === 'Pending')
+  if (pending.length === 0) return null
+
+  return (
+    <div className="bg-amber-50/70 border border-amber-200 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-3 border-b border-amber-200/70">
+        <AlertTriangle className="w-4 h-4 text-amber-600" />
+        <span className="text-sm font-bold text-gray-900">
+          {pending.length} possible duplicate{pending.length > 1 ? 's' : ''} need review
+        </span>
+      </div>
+      <div className="divide-y divide-amber-100">
+        {pending.slice(0, 5).map(f => (
+          <div key={f.id} className="flex items-center gap-4 px-5 py-3 flex-wrap">
+            <div className="flex-1 min-w-[220px]">
+              <div className="text-sm font-semibold text-gray-900">
+                {f.invoiceNumber ?? f.invoiceFileName ?? f.invoiceId}
+                <span className="text-gray-400 font-normal"> may duplicate </span>
+                {f.duplicateOfInvoiceNumber ?? f.duplicateOfInvoiceFileName ?? f.duplicateOfInvoiceId}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                {f.matchReason} · {Math.round(f.matchScore)}% match
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => reviewMutation.mutate({ flagId: f.id, action: 'Confirmed' })}
+                disabled={reviewMutation.isPending}
+                className="h-8 px-3 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg transition-colors"
+              >
+                Confirm duplicate
+              </button>
+              <button
+                onClick={() => reviewMutation.mutate({ flagId: f.id, action: 'Dismissed' })}
+                disabled={reviewMutation.isPending}
+                className="h-8 px-3 border border-gray-300 hover:bg-white disabled:opacity-40 text-gray-600 text-xs font-semibold rounded-lg transition-colors"
+              >
+                Not a duplicate
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function InvoicesPage() {
   const router = useRouter()
   const { activeClient } = useAuth()
@@ -157,7 +221,8 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      {/* Company-wide OCR confidence + threshold control */}
+      {/* Flagged duplicates needing review */}
+      {clientId && <DuplicatesCard clientId={clientId} />}
 
       {/* Filter bar */}
       <div className="border-t border-gray-200 pt-4 flex items-center gap-2.5 flex-wrap">

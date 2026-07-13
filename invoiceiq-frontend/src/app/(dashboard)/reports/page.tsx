@@ -61,6 +61,17 @@ export default function ReportsPage() {
     window.URL.revokeObjectURL(url)
   }
 
+  // Data-export download via axios (auth header) → blob
+  const downloadExport = async (file: string) => {
+    const res = await api.get(`/api/clients/${clientId}/export/${file}`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
   const trendData = trend?.months?.map(m => ({ month: m.monthLabel, amount: m.totalConverted, count: m.invoiceCount })) ?? []
   const topVendors = vendorSpend?.vendors?.slice(0, 8).map(v => ({ name: v.vendorName, amount: v.totalConverted })) ?? []
   const currencyData = currency?.currencies?.map(c => ({ name: c.currency, value: c.totalConvertedAmount })) ?? []
@@ -220,6 +231,32 @@ export default function ReportsPage() {
           </table>
         </div>
       )}
+
+      {/* Data exports (backend DataExportController) */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-base font-semibold text-gray-900">Data exports</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Download this client&apos;s raw data for archiving or external tools.</p>
+        </div>
+        <div className="px-6 py-4 flex items-center gap-2 flex-wrap">
+          {([
+            ['Invoices (CSV)',        'invoices.csv'],
+            ['Invoices (JSON)',       'invoices.json'],
+            ['Vendors (CSV)',         'vendors.csv'],
+            ['Purchase orders (CSV)', 'purchase-orders.csv'],
+            ['Audit log (JSON)',      'audit.json'],
+            ['Currency conversions',  'currency-conversions.csv'],
+          ] as const).map(([label, file]) => (
+            <button
+              key={file}
+              onClick={() => downloadExport(file)}
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 border border-gray-300 hover:bg-gray-50 text-gray-600 text-sm font-semibold rounded-lg transition-colors"
+            >
+              <Download className="w-4 h-4" /> {label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

@@ -4,14 +4,16 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../../hooks/useAuth'
 import { settingsService } from '../../../services/settings.service'
+import { webhookService, WEBHOOK_EVENTS, Webhook, WebhookDelivery } from '../../../services/webhook.service'
 
-type TabId = 'general' | 'currency' | 'language' | 'xero' | 'notifications' | 'security'
+type TabId = 'general' | 'currency' | 'language' | 'xero' | 'webhooks' | 'notifications' | 'security'
 
 const SETTINGS_NAV: { id: TabId; label: string; icon: string }[] = [
   { id: 'general',       label: 'General',          icon: '🏢' },
   { id: 'currency',      label: 'Currency',          icon: '💷' },
   { id: 'language',      label: 'Language & Region', icon: '🌐' },
   { id: 'xero',          label: 'Xero Integration',  icon: '🔗' },
+  { id: 'webhooks',      label: 'Webhooks',          icon: '📡' },
   { id: 'notifications', label: 'Notifications',     icon: '🔔' },
   { id: 'security',      label: 'Security',          icon: '🔒' },
 ]
@@ -370,6 +372,162 @@ function XeroTab({ onSave }: { onSave: (msg?: string) => void }) {
 
 // ── Tab 5: Notifications ──────────────────────────────────────────────────────
 
+
+// ── Tab: Webhooks ─────────────────────────────────────────────────────────────
+function WebhooksTab({ onSave }: { onSave: (msg?: string) => void }) {
+  const { activeClientId: clientId } = useAuth()
+  const queryClient = useQueryClient()
+
+  const [showForm, setShowForm] = useState(false)
+  const [name, setName] = useState('')
+  const [url, setUrl] = useState('')
+  const [events, setEvents] = useState<string[]>(['invoice.created'])
+  const [newSecret, setNewSecret] = useState<string | null>(null)
+  const [deliveriesFor, setDeliveriesFor] = useState<string | null>(null)
+
+  const { data: hooks = [] } = useQuery<Webhook[]>({
+    queryKey: ['webhooks', clientId],
+    queryFn: () => webhookService.list(clientId!),
+    enabled: !!clientId,
+  })
+
+  const { data: deliveries = [] } = useQuery<WebhookDelivery[]>({
+    queryKey: ['webhook-deliveries', clientId, deliveriesFor],
+    queryFn: () => webhookService.deliveries(clientId!, deliveriesFor!),
+    enabled: !!clientId && !!deliveriesFor,
+  })
+
+  const createMutation = useMutation({
+    mutationFn: () => webhookService.create(clientId!, { name, url, events }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['webhooks', clientId] })
+      setNewSecret(res.secret)
+      setShowForm(false); setName(''); setUrl(''); setEvents(['invoice.created'])
+      onSave('Webhook created.')
+    },
+    onError: () => onSave('Failed to create webhook.'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => webhookService.remove(clientId!, id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['webhooks', clientId] }); onSave('Webhook deleted.') },
+  })
+
+  const testMutation = useMutation({
+    mutationFn: (id: string) => webhookService.test(clientId!, id),
+    onSuccess: (_, id) => {
+      onSave('Test event queued.')
+      queryClient.invalidateQueries({ queryKey: ['webhook-deliveries', clientId, id] })
+    },
+    onError: () => onSave('Test failed.'),
+  })
+
+  const toggleEvent = (ev: string) =>
+    setEvents(es => es.includes(ev) ? es.filter(e => e !== ev) : [...es, ev])
+
+  const valid = name.trim() && /^https?:\/\//.test(url) && events.length > 0
+
+  return (
+    <div>
+      <SectionHeader title="Webhooks" desc="Send invoice events to external systems in real time." />
+
+      {newSecret && (
+        <div className="flex items-start gap-3 px-4 py-3.5 mb-5 bg-amber-50 border border-amber-200 rounded-xl">
+          <span className="text-xl">🔑</span>
+          <div className="min-w-0">
+            <div className="text-sm font-bold text-gray-900">Signing secret — shown only once</div>
+            <code className="block text-xs font-mono text-gray-700 bg-white border border-amber-200 rounded px-2 py-1 mt-1.5 break-all">{newSecret}</code>
+            <button onClick={() => setNewSecret(null)} className="text-xs font-semibold text-amber-700 hover:underline mt-1.5">I&apos;ve stored it safely</button>
+          </div>
+        </div>
+      )}
+
+      {/* Existing webhooks */}
+      {hooks.length === 0 && !showForm ? (
+        <div className="py-8 text-center text-sm text-gray-400">No webhooks yet. Add one to receive invoice events.</div>
+      ) : (
+        <div className="flex flex-col divide-y divide-gray-100 mb-5">
+          {hooks.map(h => (
+            <div key={h.id} className="py-3.5">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${h.status === 'Active' ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-gray-900">{h.name}</div>
+                  <div className="text-xs text-gray-400 font-mono truncate">{h.url}</div>
+                </div>
+                <button onClick={() => testMutation.mutate(h.id)} disabled={testMutation.isPending}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-40">Send test</button>
+                <button onClick={() => setDeliveriesFor(d => d === h.id ? null : h.id)}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-50">
+                  {deliveriesFor === h.id ? 'Hide log' : 'Delivery log'}
+                </button>
+                <button onClick={() => deleteMutation.mutate(h.id)}
+                  className="text-xs font-semibold text-red-500 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50">Delete</button>
+              </div>
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                {h.events.map(ev => (
+                  <span key={ev} className="h-5 px-2 rounded-full bg-gray-100 border border-gray-200 text-[11px] font-semibold text-gray-500">{ev}</span>
+                ))}
+                {h.failureCount > 0 && (
+                  <span className="h-5 px-2 rounded-full bg-red-50 border border-red-200 text-[11px] font-bold text-red-600">{h.failureCount} failures</span>
+                )}
+              </div>
+
+              {deliveriesFor === h.id && (
+                <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+                  {deliveries.length === 0 ? (
+                    <div className="px-4 py-3 text-xs text-gray-400 text-center">No deliveries yet.</div>
+                  ) : deliveries.slice(0, 8).map(d => (
+                    <div key={d.id} className="flex items-center gap-3 px-4 py-2 border-b border-gray-100 last:border-0 text-xs">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${d.status === 'Delivered' ? 'bg-emerald-500' : d.status === 'Failed' ? 'bg-red-500' : 'bg-amber-400'}`} />
+                      <span className="font-semibold text-gray-700">{d.eventType}</span>
+                      <span className="text-gray-400">{d.status}{d.httpStatusCode ? ` · HTTP ${d.httpStatusCode}` : ''} · attempt {d.attemptCount}</span>
+                      <span className="ml-auto text-gray-400">{new Date(d.createdAt).toLocaleString('en-GB')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add form */}
+      {showForm ? (
+        <div className="border border-gray-200 rounded-xl p-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Name" value={name} onChange={setName} placeholder="Accounting sync" />
+            <Field label="Endpoint URL" value={url} onChange={setUrl} placeholder="https://example.com/hooks/invoiceiq" helper="Must be HTTPS in production" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-gray-600 mb-2">Events</div>
+            <div className="flex flex-wrap gap-2">
+              {WEBHOOK_EVENTS.map(ev => (
+                <button key={ev} onClick={() => toggleEvent(ev)}
+                  className={`h-7 px-3 rounded-full text-xs font-semibold border transition-colors ${
+                    events.includes(ev) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}>
+                  {ev}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2.5">
+            <button onClick={() => setShowForm(false)}
+              className="h-9 px-4 border border-gray-200 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
+            <SaveButton onClick={() => valid && createMutation.mutate()} label="Create webhook" loading={createMutation.isPending} />
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setShowForm(true)}
+          className="inline-flex items-center gap-2 h-9 px-4 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+          + Add webhook
+        </button>
+      )}
+    </div>
+  )
+}
+
 function NotificationsTab({ onSave }: { onSave: (msg?: string) => void }) {
   const [prefs, setPrefs] = useState({
     inv_submit: true, inv_approved: true, inv_rejected: true,
@@ -516,6 +674,7 @@ export default function SettingsPage() {
     currency:      <CurrencyTab      onSave={save} />,
     language:      <LanguageTab      onSave={save} />,
     xero:          <XeroTab          onSave={save} />,
+    webhooks:      <WebhooksTab      onSave={save} />,
     notifications: <NotificationsTab onSave={save} />,
     security:      <SecurityTab      onSave={save} />,
   }

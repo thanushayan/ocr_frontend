@@ -4,12 +4,14 @@ import React, { useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, Check, X, Download, ChevronDown,
+  ArrowLeft, Check, X, Download,
   ZoomIn, ZoomOut, Maximize, Info, MessageSquare,
-  History, CreditCard, Layers, Edit2, Plus, AlertCircle
+  History, CreditCard, Layers, Edit2, Plus, AlertCircle, FileText, Package
 } from 'lucide-react'
 import { useAuth } from '../../../../hooks/useAuth'
 import { invoiceService } from '../../../../services/invoice.service'
+import api from '../../../../lib/axios'
+import { toast } from 'sonner'
 
 const BACKEND_URL = 'https://localhost:7007'
 
@@ -286,12 +288,37 @@ function TabComments({ invoiceId }: { invoiceId: string }) {
 // ════════════════════════════════════════
 // TAB 3: Activity
 // ════════════════════════════════════════
-function TabActivity({ invoice }: { invoice: any }) {
-  const activity = [
-    { icon: '📤', label: 'Invoice uploaded',         who: invoice?.uploadedByName || 'User', time: fmtDate(invoice?.createdAt), note: null },
-    { icon: '🔍', label: 'OCR processing completed', who: 'System',                          time: fmtDate(invoice?.updatedAt), note: invoice?.status },
-    ...ACTIVITY.slice(2),
-  ]
+const ACTION_ICONS: Record<string, string> = {
+  Create: '📤', Update: '✏️', Delete: '🗑️', Ocr: '🔍',
+  Approve: '✅', Reject: '❌', Comment: '💬', Upload: '📤',
+}
+
+function TabActivity({ invoice, invoiceId }: { invoice: any; invoiceId: string }) {
+  // Real audit trail from the backend
+  const { data: logs = [] } = useQuery({
+    queryKey: ['invoice-activity', invoiceId],
+    queryFn: async () => {
+      const { data } = await api.get(`/api/invoices/${invoiceId}/activity`)
+      return data as Array<{
+        id: string; action: string; changeSummary?: string
+        performedByName?: string; performedByEmail?: string; timestamp: string
+      }>
+    },
+    enabled: !!invoiceId,
+  })
+
+  const activity = logs.length > 0
+    ? logs.map(l => ({
+        icon: ACTION_ICONS[l.action] ?? '•',
+        label: l.changeSummary || l.action,
+        who: l.performedByName ?? l.performedByEmail ?? 'System',
+        time: fmtDate(l.timestamp),
+        note: null as string | null,
+      }))
+    : [
+        { icon: '📤', label: 'Invoice uploaded',         who: invoice?.uploadedByName || 'User', time: fmtDate(invoice?.createdAt), note: null },
+        { icon: '🔍', label: 'OCR processing completed', who: 'System',                          time: fmtDate(invoice?.updatedAt), note: invoice?.status },
+      ]
   return (
     <div className="p-5">
       <div className="relative">
@@ -481,7 +508,7 @@ function RightPanel({ invoice, invoiceId }: { invoice: any; invoiceId: string })
   const tabContent: Record<string, React.ReactNode> = {
     details:  <TabDetails invoice={invoice} />,
     comments: <TabComments invoiceId={invoiceId} />,
-    activity: <TabActivity invoice={invoice} />,
+    activity: <TabActivity invoice={invoice} invoiceId={invoiceId} />,
     payments: <TabPayments invoice={invoice} />,
     versions: <TabVersions />,
   }
@@ -549,6 +576,18 @@ export default function InvoiceDetailPage() {
     enabled:  !!clientId && !!invoiceId,
   })
 
+  const autoMatchMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/api/clients/${clientId}/invoices/${invoiceId}/po-match/auto`)
+      return data
+    },
+    onSuccess: (res: any) => {
+      const n = Array.isArray(res) ? res.length : (res?.matches?.length ?? 0)
+      toast.success(n > 0 ? `Found ${n} purchase order match${n > 1 ? 'es' : ''}` : 'No matching purchase orders found')
+    },
+    onError: () => toast.error('Auto-match failed'),
+  })
+
   const status   = invoice?.status ?? 'Pending'
   const statusS  = STATUS_STYLES[status] ?? STATUS_STYLES['Pending']
   const heading  = invoice?.invoiceNumber ?? invoiceId
@@ -575,11 +614,21 @@ export default function InvoiceDetailPage() {
           <button className="inline-flex items-center gap-1.5 h-8 px-3.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors">
             <X className="w-4 h-4" /> Reject
           </button>
-          <button className="inline-flex items-center gap-1.5 h-8 px-3 border border-gray-300 hover:bg-gray-50 text-gray-600 text-sm font-semibold rounded-lg transition-colors">
+          <button
+            onClick={() => invoice?.fileUrl && window.open(`${process.env.NEXT_PUBLIC_API_URL}${invoice.fileUrl}`, '_blank')}
+            className="inline-flex items-center gap-1.5 h-8 px-3 border border-gray-300 hover:bg-gray-50 text-gray-600 text-sm font-semibold rounded-lg transition-colors">
             <Download className="w-4 h-4" /> Download
           </button>
-          <button className="inline-flex items-center gap-1 h-8 px-3 border border-gray-300 hover:bg-gray-50 text-gray-600 text-sm font-semibold rounded-lg transition-colors">
-            More <ChevronDown className="w-4 h-4" />
+          <button
+            onClick={() => clientId && window.open(`${process.env.NEXT_PUBLIC_API_URL}/api/clients/${clientId}/reports/invoice/${invoiceId}.html`, '_blank')}
+            className="inline-flex items-center gap-1.5 h-8 px-3 border border-gray-300 hover:bg-gray-50 text-gray-600 text-sm font-semibold rounded-lg transition-colors">
+            <FileText className="w-4 h-4" /> Print
+          </button>
+          <button
+            onClick={() => autoMatchMutation.mutate()}
+            disabled={autoMatchMutation.isPending}
+            className="inline-flex items-center gap-1.5 h-8 px-3 border border-gray-300 hover:bg-gray-50 disabled:opacity-40 text-gray-600 text-sm font-semibold rounded-lg transition-colors">
+            <Package className="w-4 h-4" /> {autoMatchMutation.isPending ? 'Matching…' : 'Match PO'}
           </button>
         </div>
       </div>

@@ -196,7 +196,69 @@ function ProfileTab({
           </button>
         </div>
       </SectionCard>
+
+      <SubscriptionCard />
     </div>
+  )
+}
+
+// ── Subscription (GET /api/accountant/subscription) ───────────────────────────
+interface Subscription {
+  id: string
+  planName: string
+  maxClients: number
+  monthlyPrice: number
+  status: string
+  trialEndsAt?: string
+  currentPeriodEnd: string
+}
+
+function SubscriptionCard() {
+  const { data: sub } = useQuery<Subscription>({
+    queryKey: ['subscription'],
+    queryFn: () => api.get<Subscription>('/api/accountant/subscription').then(r => r.data),
+  })
+
+  if (!sub) return null
+
+  const fmtGBP = (n: number) =>
+    new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n)
+  const fmtD = (d?: string) =>
+    d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  const trialing = sub.status.toLowerCase() === 'trialing'
+
+  return (
+    <SectionCard title="Subscription" desc="Your InvoiceIQ plan and billing period.">
+      <div className="flex items-center gap-5 flex-wrap">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-bold"
+            style={{ background: 'linear-gradient(135deg, #3B82F6, #1E3A5F)' }}>
+            {sub.planName[0]?.toUpperCase() ?? 'P'}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-gray-900">{sub.planName} plan</span>
+              <span className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-bold border ${
+                trialing ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-green-50 border-green-200 text-green-700'
+              }`}>
+                {sub.status}
+              </span>
+            </div>
+            <div className="text-xs text-gray-400 mt-0.5">
+              {fmtGBP(sub.monthlyPrice)}/month · up to {sub.maxClients} clients
+            </div>
+          </div>
+        </div>
+        <div className="ml-auto text-right">
+          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            {trialing ? 'Trial ends' : 'Renews'}
+          </div>
+          <div className="text-sm font-bold text-gray-900 mt-0.5">
+            {trialing ? fmtD(sub.trialEndsAt) : fmtD(sub.currentPeriodEnd)}
+          </div>
+        </div>
+      </div>
+    </SectionCard>
   )
 }
 
