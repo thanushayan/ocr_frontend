@@ -52,8 +52,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(me)
         authLib.setUser(me)
       }
-    } catch {
-      authLib.clearAll()
+    } catch (err) {
+      // Only sign out on a real auth failure (401 after the interceptor's
+      // refresh attempt). A network error / backend restart must not wipe
+      // the session or the selected client.
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 401 || status === 403) {
+        authLib.clearAll()
+        setUser(null)
+        setActiveClientState(null)
+      }
     } finally {
       setIsLoading(false)
     }
