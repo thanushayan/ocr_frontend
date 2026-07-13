@@ -4,8 +4,7 @@ import {
   CreateInvoiceRequest, UpdateInvoiceRequest,
   DuplicateCheckRequest, DuplicateCheckResult,
   FileUploadResponse, UploadInvoiceResponse,
-  OcrResult, OcrConfidenceReport, SubmitOcrCorrectionRequest,
-  OcrFieldCorrection, SetConfidenceThresholdRequest, CompanyConfidenceReport,
+  OcrResult, InvoiceComment,
 } from '../types/invoice.types'
 
 export const invoiceService = {
@@ -58,42 +57,39 @@ export const invoiceService = {
     return data
   },
 
-  // ── OCR (invoice-scoped — unchanged in new architecture) ───────────────────
+  // ── OCR (single processing endpoint; corrections are invoice PATCHes) ──────
   async triggerOcr(invoiceId: string): Promise<OcrResult> {
     const { data } = await api.post<OcrResult>(`/api/invoices/${invoiceId}/ocr`)
     return data
   },
-  async getOcrConfidence(invoiceId: string): Promise<OcrConfidenceReport> {
-    const { data } = await api.get<OcrConfidenceReport>(`/api/invoices/${invoiceId}/ocr/confidence`)
-    return data
-  },
-  async submitOcrCorrections(invoiceId: string, body: SubmitOcrCorrectionRequest): Promise<OcrFieldCorrection> {
-    const { data } = await api.post<OcrFieldCorrection>(`/api/invoices/${invoiceId}/ocr/corrections`, body)
-    return data
-  },
-  async getOcrCorrections(invoiceId: string): Promise<OcrFieldCorrection[]> {
-    const { data } = await api.get<OcrFieldCorrection[]>(`/api/invoices/${invoiceId}/ocr/corrections`)
-    return data
-  },
-  async approveOcr(invoiceId: string): Promise<void> {
-    await api.post(`/api/invoices/${invoiceId}/ocr/approve`)
-  },
 
   // ── Comments ────────────────────────────────────────────────────────────────
-  getComments: (invoiceId: string) =>
-    api.get(`/api/invoices/${invoiceId}/comments`).then(r => r.data),
-
-  addComment: (invoiceId: string, comment: string) =>
-    api.post(`/api/invoices/${invoiceId}/comments`, { comment }).then(r => r.data),
-
-  // ── OCR confidence (client-wide) ────────────────────────────────────────────
-  async getCompanyConfidenceReport(clientId: string): Promise<CompanyConfidenceReport> {
-    const { data } = await api.get<CompanyConfidenceReport>(`/api/clients/${clientId}/ocr/confidence-report`)
+  async getComments(invoiceId: string): Promise<InvoiceComment[]> {
+    const { data } = await api.get<InvoiceComment[]>(`/api/invoices/${invoiceId}/comments`)
     return data
   },
-  async setConfidenceThreshold(clientId: string, body: SetConfidenceThresholdRequest): Promise<CompanyConfidenceReport> {
-    const { data } = await api.put<CompanyConfidenceReport>(`/api/clients/${clientId}/ocr/confidence-threshold`, body)
+  async addComment(invoiceId: string, content: string): Promise<InvoiceComment> {
+    const { data } = await api.post<InvoiceComment>(`/api/invoices/${invoiceId}/comments`, { content })
     return data
+  },
+  async resolveComment(invoiceId: string, commentId: string): Promise<void> {
+    await api.post(`/api/invoices/${invoiceId}/comments/${commentId}/resolve`)
+  },
+  async deleteComment(invoiceId: string, commentId: string): Promise<void> {
+    await api.delete(`/api/invoices/${invoiceId}/comments/${commentId}`)
+  },
+
+  // ── Invoice items ───────────────────────────────────────────────────────────
+  async addItem(invoiceId: string, body: { description: string; quantity: number; unitPrice: number; taxRate?: number }) {
+    const { data } = await api.post(`/api/invoices/${invoiceId}/items`, body)
+    return data
+  },
+  async updateItem(itemId: string, body: { description?: string; quantity?: number; unitPrice?: number; taxRate?: number }) {
+    const { data } = await api.patch(`/api/items/${itemId}`, body)
+    return data
+  },
+  async deleteItem(itemId: string): Promise<void> {
+    await api.delete(`/api/items/${itemId}`)
   },
 }
 

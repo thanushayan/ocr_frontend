@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 import { invoiceService } from '../../../services/invoice.service'
+import { approvalsService } from '../../../services/approvals.service'
 import { DuplicateCheckResult } from '../../../types/invoice.types'
 
 const OCR_STEPS = [
@@ -380,32 +381,21 @@ function StepReview({ invoiceId, fileUrl, clientId, onNext, onBack }: {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Try confidence endpoint first
-        const conf = await invoiceService.getOcrConfidence(invoiceId)
-
-        if (conf?.fields?.length) {
-          // Use confidence fields if available
-          setOcrFields(conf.fields.map((f: any) => ({
-            label:      f.fieldName ?? f.label ?? 'Field',
-            value:      String(f.value ?? f.extractedValue ?? '—'),
-            confidence: Math.round((f.confidenceScore ?? f.confidence ?? 0.9) * 100),
-            mono:       ['invoiceNumber', 'totalAmount', 'subTotal', 'taxAmount'].includes(f.fieldName),
-          })))
-          if (conf?.overallConfidence) setOverallConf(Math.round(conf.overallConfidence * 100))
-        } else {
-          // Fallback: get invoice data directly
-          const inv = await invoiceService.getById(clientId, invoiceId)
-          setOcrFields([
-            { label: 'Vendor name',    value: (inv as any)?.extractedVendorName ?? (inv as any)?.vendorName ?? '—', confidence: 90, mono: false },
-            { label: 'Invoice number', value: (inv as any)?.invoiceNumber ?? '—',  confidence: 90, mono: true  },
-            { label: 'Invoice date',   value: fmtDate((inv as any)?.invoiceDate),  confidence: 90, mono: false },
-            { label: 'Due date',       value: fmtDate((inv as any)?.dueDate),      confidence: 90, mono: false },
-            { label: 'Currency',       value: (inv as any)?.currency ?? 'GBP',     confidence: 90, mono: false },
-            { label: 'Subtotal',       value: fmtCurrency((inv as any)?.subTotal,    (inv as any)?.currency), confidence: 90, mono: true },
-            { label: 'Tax',            value: fmtCurrency((inv as any)?.taxAmount,   (inv as any)?.currency), confidence: 90, mono: true },
-            { label: 'Total amount',   value: fmtCurrency((inv as any)?.totalAmount, (inv as any)?.currency), confidence: 90, mono: true },
-          ])
-        }
+        // The backend stores OCR-extracted values on the invoice record
+        const inv = await invoiceService.getById(clientId, invoiceId)
+        const extracted = (v: unknown) => (v != null && v !== '' ? 95 : 50)
+        setOcrFields([
+          { label: 'Vendor name',    value: inv?.extractedVendorName ?? inv?.vendorName ?? '—', confidence: extracted(inv?.extractedVendorName ?? inv?.vendorName), mono: false },
+          { label: 'Invoice number', value: inv?.invoiceNumber ?? '—',  confidence: extracted(inv?.invoiceNumber), mono: true  },
+          { label: 'Invoice date',   value: fmtDate(inv?.invoiceDate),  confidence: extracted(inv?.invoiceDate), mono: false },
+          { label: 'Due date',       value: fmtDate(inv?.dueDate),      confidence: extracted(inv?.dueDate), mono: false },
+          { label: 'Currency',       value: inv?.currency ?? 'GBP',     confidence: extracted(inv?.currency), mono: false },
+          { label: 'Subtotal',       value: fmtCurrency(inv?.subTotal,    inv?.currency), confidence: extracted(inv?.subTotal), mono: true },
+          { label: 'Tax',            value: fmtCurrency(inv?.taxAmount,   inv?.currency), confidence: extracted(inv?.taxAmount), mono: true },
+          { label: 'Total amount',   value: fmtCurrency(inv?.totalAmount, inv?.currency), confidence: extracted(inv?.totalAmount), mono: true },
+        ])
+        const filled = [inv?.invoiceNumber, inv?.invoiceDate, inv?.totalAmount, inv?.extractedVendorName ?? inv?.vendorName].filter(v => v != null && v !== '').length
+        setOverallConf(Math.round(50 + (filled / 4) * 50))
       } catch {
         // keep dummy fields
       } finally {
@@ -546,8 +536,9 @@ function StepSubmit({ invoiceId, summary, onBack }: {
   const handleSubmit = async () => {
     setLoading(true)
     try {
-      await invoiceService.approveOcr(invoiceId)
-      toast.success('Invoice submitted successfully!')
+      // Kick off the approval workflow for the reviewed invoice
+      await approvalsService.start(invoiceId)
+      toast.success('Invoice submitted for approval!')
       router.push('/invoices')
     } catch {
       toast.error('Submit failed. Please try again.')

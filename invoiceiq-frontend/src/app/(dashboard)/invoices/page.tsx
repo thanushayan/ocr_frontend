@@ -12,7 +12,6 @@ import {
 import { useAuth } from '../../../hooks/useAuth'
 import { invoiceService } from '../../../services/invoice.service'
 import { PagedInvoices } from '../../../types/invoice.types'
-import { CompanyOcrConfidenceCard } from '../../../components/invoices/CompanyOcrConfidenceCard'
 
 // Dummy fallback data
 const DUMMY_ROWS = [
@@ -159,7 +158,6 @@ export default function InvoicesPage() {
       </div>
 
       {/* Company-wide OCR confidence + threshold control */}
-      {clientId && <CompanyOcrConfidenceCard clientId={clientId} />}
 
       {/* Filter bar */}
       <div className="border-t border-gray-200 pt-4 flex items-center gap-2.5 flex-wrap">

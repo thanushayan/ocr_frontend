@@ -5,10 +5,26 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../../hooks/useAuth'
 import { clientService } from '../../../services/client.service'
 import type { Client } from '../../../types/client.types'
-import { Store, Plus, ChevronRight, MapPin, Building2 } from 'lucide-react'
+import { Store, Plus, ChevronRight, MapPin, Building2, Users, ClipboardCheck, AlertCircle, ReceiptText } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+
+function OverviewCard({ label, value, icon: Icon, color }: {
+  label: string; value: string | number; icon: React.ElementType; color: string
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${color}`}>
+        <Icon size={17} className="text-white" />
+      </div>
+      <div>
+        <p className="text-lg font-bold text-gray-900 leading-tight">{value}</p>
+        <p className="text-xs text-gray-400 font-medium">{label}</p>
+      </div>
+    </div>
+  )
+}
 
 export default function ClientsPage() {
   const { setActiveClient, activeClient } = useAuth()
@@ -17,6 +33,11 @@ export default function ClientsPage() {
   const { data: clients = [], isLoading } = useQuery<Client[]>({
     queryKey: ['clients'],
     queryFn: () => clientService.getAll(),
+  })
+
+  const { data: overview } = useQuery({
+    queryKey: ['accountant-dashboard'],
+    queryFn: () => clientService.getAccountantDashboard(),
   })
 
   function handleSelect(client: Client) {
@@ -51,6 +72,16 @@ export default function ClientsPage() {
           <Plus size={16} /> Add Client
         </Link>
       </div>
+
+      {/* Practice overview (accountant-level) */}
+      {overview && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <OverviewCard label="Active clients"      value={`${overview.activeClients}/${overview.totalClients}`} icon={Users} color="bg-blue-500" />
+          <OverviewCard label="Invoices this month" value={overview.invoicesThisMonth} icon={ReceiptText} color="bg-indigo-500" />
+          <OverviewCard label="Open tasks"          value={overview.openTasks} icon={ClipboardCheck} color="bg-amber-500" />
+          <OverviewCard label="Unresolved alerts"   value={overview.unresolvedAlerts} icon={AlertCircle} color={overview.criticalAlerts > 0 ? 'bg-red-500' : 'bg-emerald-500'} />
+        </div>
+      )}
 
       {/* No clients state */}
       {clients.length === 0 && (

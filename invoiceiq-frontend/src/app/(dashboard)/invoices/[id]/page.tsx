@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Check, X, Download, ChevronDown,
   ZoomIn, ZoomOut, Maximize, Info, MessageSquare,
@@ -202,9 +202,42 @@ function TabDetails({ invoice }: { invoice: any }) {
 // ════════════════════════════════════════
 // TAB 2: Comments
 // ════════════════════════════════════════
-function TabComments() {
+function relTime(dateStr?: string) {
+  if (!dateStr) return ''
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1)  return 'Just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+}
+
+function TabComments({ invoiceId }: { invoiceId: string }) {
   const [text, setText] = useState('')
   const colors = ['bg-blue-500', 'bg-teal-500', 'bg-blue-500']
+  const queryClient = useQueryClient()
+
+  const { data: apiComments = [] } = useQuery({
+    queryKey: ['invoice-comments', invoiceId],
+    queryFn: () => invoiceService.getComments(invoiceId),
+    enabled: !!invoiceId,
+  })
+
+  const postMutation = useMutation({
+    mutationFn: () => invoiceService.addComment(invoiceId, text.trim()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoice-comments', invoiceId] })
+      setText('')
+    },
+  })
+
+  const COMMENTS = apiComments.map(c => ({
+    user: c.author?.fullName ?? 'User',
+    time: relTime(c.createdAt),
+    text: c.content,
+  }))
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
@@ -237,7 +270,10 @@ function TabComments() {
             className="w-full border-none outline-none resize-none px-3 py-2.5 text-sm text-gray-800 bg-gray-50 min-h-[68px] placeholder-gray-400"
           />
           <div className="flex justify-end p-2 bg-gray-50 border-t border-gray-100">
-            <button disabled={!text.trim()} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors">
+            <button
+              disabled={!text.trim() || postMutation.isPending}
+              onClick={() => postMutation.mutate()}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors">
               Post comment
             </button>
           </div>
@@ -432,19 +468,19 @@ function DocumentViewer({ invoice, loading }: { invoice: any; loading: boolean }
 // ════════════════════════════════════════
 const TABS = [
   { id: 'details',  label: 'Details',  Icon: Info,          count: null },
-  { id: 'comments', label: 'Comments', Icon: MessageSquare, count: 3    },
+  { id: 'comments', label: 'Comments', Icon: MessageSquare, count: null },
   { id: 'activity', label: 'Activity', Icon: History,       count: null },
   { id: 'payments', label: 'Payments', Icon: CreditCard,    count: null },
   { id: 'versions', label: 'Versions', Icon: Layers,        count: null },
 ]
 
-function RightPanel({ invoice }: { invoice: any }) {
+function RightPanel({ invoice, invoiceId }: { invoice: any; invoiceId: string }) {
   const [activeTab, setActiveTab] = useState('details')
   const [tags, setTags] = useState(['Q2 2026', 'Software licence'])
 
   const tabContent: Record<string, React.ReactNode> = {
     details:  <TabDetails invoice={invoice} />,
-    comments: <TabComments />,
+    comments: <TabComments invoiceId={invoiceId} />,
     activity: <TabActivity invoice={invoice} />,
     payments: <TabPayments invoice={invoice} />,
     versions: <TabVersions />,
@@ -551,7 +587,7 @@ export default function InvoiceDetailPage() {
       {/* Body */}
       <div className="flex-1 overflow-hidden grid grid-cols-[6fr_4fr] gap-5 p-5">
         <DocumentViewer invoice={invoice} loading={isLoading} />
-        <RightPanel invoice={invoice} />
+        <RightPanel invoice={invoice} invoiceId={invoiceId} />
       </div>
     </div>
   )

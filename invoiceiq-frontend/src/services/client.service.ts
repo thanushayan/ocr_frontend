@@ -1,5 +1,5 @@
 import api from '../lib/axios'
-import type { Client, CreateClientRequest, ClientDashboard, PremisesLicence, AwrsCompliance, ComplianceAlert } from '../types/client.types'
+import type { Client, CreateClientRequest, ClientDashboard, AccountantDashboard, PremisesLicence, AwrsCompliance, ComplianceAlert } from '../types/client.types'
 
 export const clientService = {
   // List all accountant's clients
@@ -38,8 +38,8 @@ export const clientService = {
   },
 
   // Accountant-level dashboard (all clients overview)
-  async getAccountantDashboard(): Promise<{ totalClients: number; alerts: number; vatDue: number; pendingInvoices: number }> {
-    const { data } = await api.get('/api/accountant/dashboard')
+  async getAccountantDashboard(): Promise<AccountantDashboard> {
+    const { data } = await api.get<AccountantDashboard>('/api/accountant/dashboard')
     return data
   },
 

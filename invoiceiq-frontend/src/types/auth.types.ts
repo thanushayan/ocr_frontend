@@ -14,9 +14,11 @@ export interface User {
   lastLoginAt?: string
   // NEW fields for accountant
   practiceAddress?: string
+  practicePostcode?: string
   icaewNumber?: string
   aatNumber?: string
   mtdAgentReference?: string
+  vatAgentCode?: string
   plan?: string                // 'Starter' | 'Pro' | 'Unlimited'
   subscriptionStatus?: string
   trialEndsAt?: string
@@ -56,16 +58,16 @@ export interface RegisterRequest {
   // companyName removed — accountant registers without company
 }
 
+// PUT /api/auth/me — fields the backend accepts
 export interface UpdateProfileRequest {
   fullName?: string
   phone?: string
-  jobTitle?: string
-  preferredLanguage?: string
-  avatarUrl?: string
   practiceAddress?: string
+  practicePostcode?: string
   icaewNumber?: string
   aatNumber?: string
   mtdAgentReference?: string
+  vatAgentCode?: string
 }
 
 // ── Token refresh / revoke ──────────────────────────────────────────────────
@@ -92,6 +94,6 @@ export interface TwoFactorCodeRequest {
 
 // Body for the anonymous login-time verification (POST /api/auth/2fa/verify)
 export interface TwoFactorVerifyRequest {
-  userId: string
+  accountantId: string
   code: string
 }

@@ -178,24 +178,18 @@ export default function VendorsPage() {
     },
   })
 
-  const inviteMutation = useMutation({
-    mutationFn: (v: Vendor) =>
-      vendorService.invite(v.id, { email: v.contactEmail ?? '', fullName: v.name }),
-    onSuccess: (_, v) => {
-      setInvited((s) => { const n = new Set(s); n.add(v.id); return n })
-      setToast(`Invitation sent to ${v.contactEmail ?? 'vendor'}`)
-      queryClient.invalidateQueries({ queryKey: ['vendors'] })
-    },
-  })
+  // Vendor portal invites are not part of the backend API — shop-owner access
+  // is managed per client under Clients → Portal users instead.
+  const inviteMutation = {
+    isPending: false,
+    mutate: (_v: Vendor) => setToast('Vendor portal invites are managed per client (Clients → Portal users).'),
+  }
 
-  const portalAccessMutation = useMutation({
-    mutationFn: (vars: { vendorId: string; isActive: boolean }) =>
-      vendorService.updatePortalAccess(vars.vendorId, { isActive: vars.isActive }),
-    onSuccess: (_, vars) => {
-      setToast(vars.isActive ? 'Portal access enabled.' : 'Portal access disabled.')
-      queryClient.invalidateQueries({ queryKey: ['vendors'] })
-    },
-  })
+  const portalAccessMutation = {
+    isPending: false,
+    mutate: (_vars: { vendorId: string; isActive: boolean }) =>
+      setToast('Vendor portal access is managed per client (Clients → Portal users).'),
+  }
 
   const filtered = vendors.filter((v) => {
     const q = search.toLowerCase()

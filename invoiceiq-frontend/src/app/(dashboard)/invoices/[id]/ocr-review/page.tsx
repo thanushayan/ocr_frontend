@@ -2,13 +2,14 @@
 
 import React, { useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   ArrowLeft, Check, CheckCheck, AlertTriangle,
   AlertCircle, RotateCcw, ArrowRight, CheckCircle
 } from 'lucide-react'
 import { invoiceService } from '../../../../../services/invoice.service'
+import { useAuth } from '../../../../../hooks/useAuth'
 
 // ── OCR field type ──
 interface OcrField {
@@ -271,39 +272,47 @@ export default function OcrReviewPage() {
   const [approved, setApproved] = useState<Set<string>>(new Set())
   const qc = useQueryClient()
 
-  // Manual corrections already recorded for this invoice
-  const { data: corrections } = useQuery({
-    queryKey: ['ocrCorrections', invoiceId],
-    queryFn: () => invoiceService.getOcrCorrections(invoiceId),
-    enabled: !!invoiceId,
-  })
+  const { activeClient } = useAuth()
+
+  // Corrections applied in this session (backend persists them on the invoice)
+  const corrections = fields.filter((f) => f.value !== f.ocr)
 
   // Re-run OCR on this invoice
   const reRunOcr = useMutation({
     mutationFn: () => invoiceService.triggerOcr(invoiceId),
     onSuccess: () => {
       toast.success('OCR re-run started.')
-      qc.invalidateQueries({ queryKey: ['ocrCorrections', invoiceId] })
+      qc.invalidateQueries({ queryKey: ['invoice', invoiceId] })
     },
     onError: () => toast.error('Could not re-run OCR.'),
   })
 
-  // Persist every edited field as a manual correction
+  // Persist edited fields by PATCHing the invoice record
+  const numeric = (v: string) => {
+    const n = Number(v.replace(/[^0-9.-]/g, ''))
+    return Number.isFinite(n) ? n : undefined
+  }
   const submitCorrections = useMutation({
     mutationFn: async () => {
       const edited = fields.filter((f) => f.value !== f.ocr)
-      for (const f of edited) {
-        await invoiceService.submitOcrCorrections(invoiceId, {
-          fieldName: f.label,
-          originalValue: f.ocr,
-          correctedValue: f.value,
-        })
+      if (edited.length && activeClient?.id) {
+        const patch: Record<string, unknown> = {}
+        for (const f of edited) {
+          if (f.id === 'invoice_num')  patch.invoiceNumber = f.value
+          if (f.id === 'currency')     patch.currency = f.value
+          if (f.id === 'tax')          patch.taxAmount = numeric(f.value)
+          if (f.id === 'subtotal')     patch.subTotal = numeric(f.value)
+          if (f.id === 'total')        patch.totalAmount = numeric(f.value)
+        }
+        if (Object.keys(patch).length) {
+          await invoiceService.update(activeClient.id, invoiceId, patch)
+        }
       }
       return edited.length
     },
     onSuccess: (count) => {
       toast.success(count ? `${count} correction${count > 1 ? 's' : ''} saved.` : 'No changes to save.')
-      qc.invalidateQueries({ queryKey: ['ocrCorrections', invoiceId] })
+      qc.invalidateQueries({ queryKey: ['invoice', invoiceId] })
     },
     onError: () => toast.error('Could not save corrections.'),
   })

@@ -13,15 +13,6 @@ import api from '../../../lib/axios'
 import { reportsService } from '../../../services/reports.service'
 import { useAuth } from '../../../hooks/useAuth'
 
-interface SpendTrendItem { year: number; month: number; monthLabel: string; totalConverted: number; totalOriginal: number; invoiceCount: number }
-interface SpendTrend { baseCurrency: string; months: SpendTrendItem[] }
-interface VendorSpendItem { vendorId: string; vendorName: string; totalConverted: number; invoiceCount: number; topCurrency: string }
-interface VendorSpend { baseCurrency: string; vendors: VendorSpendItem[] }
-interface CurrencyItem { currency: string; invoiceCount: number; totalOriginalAmount: number; totalConvertedAmount: number; averageRate: number }
-interface CurrencyBreakdown { baseCurrency: string; grandTotal: number; currencies: CurrencyItem[] }
-interface YoyMonth { month: number; monthLabel: string; currentYear: number; previousYear: number; changePercent: number }
-interface Yoy { baseCurrency: string; currentYear: number; previousYear: number; currentYearTotal: number; previousYearTotal: number; changePercent: number; months: YoyMonth[] }
-
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899']
 
 function fmt(n: number, currency = 'GBP') {
@@ -33,25 +24,25 @@ export default function ReportsPage() {
   const { activeClientId: clientId } = useAuth()
   const year = new Date().getFullYear()
 
-  const { data: trend } = useQuery<SpendTrend>({
+  const { data: trend } = useQuery({
     queryKey: ['report-spend-trend', clientId, year],
     queryFn: () => reportsService.spendTrend(clientId!, year),
     enabled: !!clientId,
   })
 
-  const { data: vendorSpend } = useQuery<VendorSpend>({
+  const { data: vendorSpend } = useQuery({
     queryKey: ['report-vendor-spend', clientId, year],
     queryFn: () => reportsService.vendorSpend(clientId!, year),
     enabled: !!clientId,
   })
 
-  const { data: currency } = useQuery<CurrencyBreakdown>({
+  const { data: currency } = useQuery({
     queryKey: ['report-currency', clientId, year],
     queryFn: () => reportsService.currencyBreakdown(clientId!, year),
     enabled: !!clientId,
   })
 
-  const { data: yoy } = useQuery<Yoy>({
+  const { data: yoy } = useQuery({
     queryKey: ['report-yoy', clientId],
     queryFn: () => reportsService.yearOverYear(clientId!),
     enabled: !!clientId,

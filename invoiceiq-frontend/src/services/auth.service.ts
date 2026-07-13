@@ -47,12 +47,9 @@ export const authService = {
     )
     return data
   },
-  async revoke(refreshToken: string): Promise<void> {
-    await api.post('/api/auth/revoke', { token: refreshToken })
-  },
-  async logout(): Promise<void> {
-    await api.post('/api/auth/logout-all')
-  },
+  // The backend has no logout/revoke endpoint — logout is client-side only
+  // (tokens are cleared from cookies/localStorage by the caller).
+  async logout(): Promise<void> {},
 
   // ── Two-factor authentication ───────────────────────────────────────────────
   async getTwoFactorStatus(): Promise<TwoFactorStatus> {

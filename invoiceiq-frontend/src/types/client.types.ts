@@ -90,6 +90,19 @@ export interface AwrsCompliance {
   isRegistered: boolean
 }
 
+// GET /api/accountant/dashboard
+export interface AccountantDashboard {
+  totalClients: number
+  activeClients: number
+  openTasks: number
+  unresolvedAlerts: number
+  criticalAlerts: number
+  draftVatReturns: number
+  invoicesThisMonth: number
+  monthlyRecurringFees: number
+  recentAlerts: ComplianceAlert[]
+}
+
 export interface ComplianceAlert {
   id: string
   clientId: string

@@ -1,7 +1,9 @@
 import api from '../lib/axios'
 
+const LANGUAGE_KEY = 'iq_language'
+
 export const settingsService = {
-  // General (read-only — no update endpoint)
+  // General — client record (read via ClientController)
   getCompany: (clientId: string) =>
     api.get(`/api/clients/${clientId}`).then(r => r.data),
 
@@ -15,12 +17,16 @@ export const settingsService = {
   updateBaseCurrency: (clientId: string, currency: string) =>
     api.put(`/api/clients/${clientId}/currency/base`, { currency }).then(r => r.data),
 
-  // Language
-  getLanguage: (clientId: string) =>
-    api.get(`/api/i18n/clients/${clientId}/language`).then(r => r.data),
+  // Language — no backend endpoint; preference is stored locally
+  getLanguage: async (_clientId: string): Promise<{ languageCode: string }> => {
+    const code = typeof window !== 'undefined' ? localStorage.getItem(LANGUAGE_KEY) : null
+    return { languageCode: code ?? 'en' }
+  },
 
-  updateLanguage: (clientId: string, languageCode: string) =>
-    api.put(`/api/i18n/clients/${clientId}/language`, { languageCode }).then(r => r.data),
+  updateLanguage: async (_clientId: string, languageCode: string): Promise<{ languageCode: string }> => {
+    if (typeof window !== 'undefined') localStorage.setItem(LANGUAGE_KEY, languageCode)
+    return { languageCode }
+  },
 
   // Xero
   getXeroConnection: (clientId: string) =>
@@ -32,13 +38,13 @@ export const settingsService = {
   disconnectXero: (clientId: string) =>
     api.delete(`/api/xero/${clientId}/disconnect`).then(r => r.data),
 
-  // API Keys
-  getApiKeys: (clientId: string) =>
-    api.get(`/api/clients/${clientId}/api-keys`).then(r => r.data),
+  // API Keys — accountant-level in the backend (no client scoping)
+  getApiKeys: () =>
+    api.get('/api/api-keys').then(r => r.data),
 
-  createApiKey: (clientId: string, name: string) =>
-    api.post(`/api/clients/${clientId}/api-keys`, { name }).then(r => r.data),
+  createApiKey: (name: string) =>
+    api.post('/api/api-keys', { name }).then(r => r.data),
 
-  revokeApiKey: (clientId: string, keyId: string) =>
-    api.delete(`/api/clients/${clientId}/api-keys/${keyId}`),
+  revokeApiKey: (keyId: string) =>
+    api.delete(`/api/api-keys/${keyId}`),
 }

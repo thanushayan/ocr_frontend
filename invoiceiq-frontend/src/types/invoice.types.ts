@@ -19,7 +19,7 @@ export interface InvoiceItem {
 
 export interface Invoice {
   id: string
-  companyId: string
+  clientId: string
   fileName: string
   fileUrl: string
   fileType: string
@@ -81,6 +81,7 @@ export interface CreateInvoiceRequest {
   notes?: string
 }
 
+// PATCH /api/clients/{clientId}/invoices/{id} — fields the backend accepts
 export interface UpdateInvoiceRequest {
   invoiceNumber?: string
   invoiceDate?: string
@@ -92,7 +93,6 @@ export interface UpdateInvoiceRequest {
   vendorId?: string
   expenseCategoryId?: string
   notes?: string
-  status?: InvoiceStatus
 }
 
 // ── Duplicate detection ─────────────────────────────────────────────────────
@@ -139,54 +139,19 @@ export interface OcrResult {
   success: boolean
 }
 
-export interface OcrFieldConfidence {
+// ── Comments ────────────────────────────────────────────────────────────────
+export interface CommentAuthor {
   id: string
-  fieldName: string
-  extractedValue?: string
-  confidenceScore: number       // 0..1
-  isLowConfidence: boolean
+  fullName: string
+  email: string
 }
 
-export interface OcrConfidenceReport {
-  invoiceId: string
-  overallConfidence: number     // 0..1
-  hasLowConfidenceFields: boolean
-  fields: OcrFieldConfidence[]
-}
-
-export interface SubmitOcrCorrectionRequest {
-  fieldName: string
-  originalValue?: string
-  correctedValue: string
-  reason?: string
-}
-
-export interface OcrFieldCorrection {
+export interface InvoiceComment {
   id: string
   invoiceId: string
-  fieldName: string
-  originalValue?: string
-  correctedValue?: string
-  reason?: string
-  correctedByName: string
-  createdAt: string
-}
-
-export interface SetConfidenceThresholdRequest {
-  threshold: number             // 0..1
-  autoFlagLowConfidence: boolean
-}
-
-export interface FieldConfidenceAverage {
-  fieldName: string
-  averageScore: number
-  lowConfidenceCount: number
-}
-
-export interface CompanyConfidenceReport {
-  companyId: string
-  threshold: number
-  totalInvoicesProcessed: number
-  lowConfidenceCount: number
-  fieldAverages: FieldConfidenceAverage[]
+  content: string
+  isResolved: boolean
+  resolvedAt?: string
+  author?: CommentAuthor
+  createdAt?: string
 }

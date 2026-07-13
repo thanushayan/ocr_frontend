@@ -353,7 +353,7 @@ function XeroTab({ onSave }: { onSave: (msg?: string) => void }) {
                 <span key={f} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600">✅ {f}</span>
               ))}
             </div>
-            <a href={`/api/xero/${clientId}/connect`}
+            <a href={`${process.env.NEXT_PUBLIC_API_URL}/api/xero/${clientId}/connect`}
               className="inline-flex items-center gap-2.5 h-11 px-6 bg-[#1AB4D7] text-white text-sm font-bold rounded-lg hover:bg-[#17a0c0] transition-colors">
               <svg width="20" height="20" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" r="18" fill="rgba(255,255,255,.2)" />
@@ -404,7 +404,6 @@ function NotificationsTab({ onSave }: { onSave: (msg?: string) => void }) {
 interface ApiKey { id: string; name: string; keyPrefix: string; createdAt: string; lastUsedAt?: string }
 
 function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
-  const { activeClientId: clientId } = useAuth()
   const queryClient = useQueryClient()
 
   const [tfa, setTfa]               = useState(true)
@@ -416,23 +415,22 @@ function SecurityTab({ onSave }: { onSave: (msg?: string) => void }) {
   const [copied, setCopied]         = useState<string | null>(null)
 
   const { data: keys = [] } = useQuery<ApiKey[]>({
-    queryKey: ['api-keys', clientId],
-    queryFn: () => settingsService.getApiKeys(clientId!),
-    enabled: !!clientId,
+    queryKey: ['api-keys'],
+    queryFn: () => settingsService.getApiKeys(),
   })
 
   const createMutation = useMutation({
-    mutationFn: () => settingsService.createApiKey(clientId!, newKeyName || 'New key'),
+    mutationFn: () => settingsService.createApiKey(newKeyName || 'New key'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys', clientId] })
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
       setNewKeyName('')
       onSave('API key created.')
     },
   })
 
   const revokeMutation = useMutation({
-    mutationFn: (keyId: string) => settingsService.revokeApiKey(clientId!, keyId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['api-keys', clientId] }),
+    mutationFn: (keyId: string) => settingsService.revokeApiKey(keyId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['api-keys'] }),
   })
 
   function handleCopy(id: string) {

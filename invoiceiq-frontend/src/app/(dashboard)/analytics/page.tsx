@@ -117,12 +117,12 @@ export default function AnalyticsPage() {
     enabled: !!clientId,
   })
 
-  // Normalise data — backend may return arrays or wrapped objects
-  const trendData: any[]    = Array.isArray(spendTrend) ? spendTrend : (spendTrend?.data ?? [])
-  const vendorData: any[]   = Array.isArray(vendorSpend) ? vendorSpend : (vendorSpend?.data ?? [])
-  const currencyData: any[] = Array.isArray(currencyBreakdown) ? currencyBreakdown : (currencyBreakdown?.data ?? [])
-  const budgetData: any[]   = Array.isArray(budgetVsActual) ? budgetVsActual : (budgetVsActual?.data ?? [])
-  const yoyData: any[]      = Array.isArray(yoy) ? yoy : (yoy?.data ?? [])
+  // Services aggregate invoice data client-side and always return arrays
+  const trendData: any[]    = spendTrend ?? []
+  const vendorData: any[]   = vendorSpend ?? []
+  const currencyData: any[] = currencyBreakdown ?? []
+  const budgetData: any[]   = budgetVsActual ?? []
+  const yoyData: any[]      = yoy ?? []
 
   // KPIs derived from trend data
   const totalSpend   = trendData.reduce((s, d) => s + (d.amount ?? d.spend ?? d.total ?? 0), 0)
