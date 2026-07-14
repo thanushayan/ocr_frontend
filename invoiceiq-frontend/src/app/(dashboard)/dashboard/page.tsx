@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -13,44 +13,8 @@ import {
 import Link from 'next/link'
 import { useAuth } from '../../../hooks/useAuth'
 import { dashboardService } from '../../../services/dashboard.service'
-
-// Dummy fallback data
-const dummyKpis = {
-  totalInvoices: 1284,
-  pendingApproval: 47,
-  approved: 1102,
-  rejected: 135,
-  totalSpend: 284750.00,
-}
-
-const spendTrendData = [
-  { month: 'Jan', amount: 45000 },
-  { month: 'Feb', amount: 52000 },
-  { month: 'Mar', amount: 38000 },
-  { month: 'Apr', amount: 61000 },
-  { month: 'May', amount: 55000 },
-  { month: 'Jun', amount: 67000 },
-  { month: 'Jul', amount: 72000 },
-  { month: 'Aug', amount: 58000 },
-  { month: 'Sep', amount: 69000 },
-  { month: 'Oct', amount: 74000 },
-  { month: 'Nov', amount: 82000 },
-  { month: 'Dec', amount: 79000 },
-]
-
-const dummyRecentInvoices = [
-  { id: 'INV-2024-001', vendor: 'Acme Corp', amount: 12500.00, date: '2024-01-15', status: 'pending' },
-  { id: 'INV-2024-002', vendor: 'Tech Solutions Ltd', amount: 8750.50, date: '2024-01-14', status: 'approved' },
-  { id: 'INV-2024-003', vendor: 'Global Supplies', amount: 3200.00, date: '2024-01-13', status: 'rejected' },
-  { id: 'INV-2024-004', vendor: 'Office Pro', amount: 1850.75, date: '2024-01-12', status: 'approved' },
-  { id: 'INV-2024-005', vendor: 'Marketing Plus', amount: 22000.00, date: '2024-01-11', status: 'pending' },
-]
-
-const dummyPendingApprovals = [
-  { id: 'INV-2024-006', vendor: 'Cloud Services Inc', amount: 15000.00, daysWaiting: 3 },
-  { id: 'INV-2024-007', vendor: 'Design Studio', amount: 4500.00, daysWaiting: 1 },
-  { id: 'INV-2024-008', vendor: 'Logistics Co', amount: 9800.00, daysWaiting: 5 },
-]
+import { approvalsService } from '../../../services/approvals.service'
+import { toast } from 'sonner'
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; text: string; label: string }> = {
@@ -93,29 +57,57 @@ function KpiCard({
 
 export default function DashboardPage() {
   const { activeClient } = useAuth()
+  const clientId = activeClient?.id
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard', activeClient?.id],
+    queryKey: ['dashboard', clientId],
     queryFn: () => dashboardService.getDashboard(activeClient!.id),
     enabled: !!activeClient?.id,
   })
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  const queryClient = useQueryClient()
 
-  // API → UI mapping with dummy fallback
+  // Pending approvals (GET /api/approvals/pending)
+  const { data: pendingApprovals = [] } = useQuery({
+    queryKey: ['approvals-pending'],
+    queryFn: () => approvalsService.getPending() as Promise<Array<{
+      id: string; invoiceId: string; invoiceNumber?: string
+      workflowName: string; currentStep: number; createdAt: string
+    }>>,
+    enabled: !!clientId,
+  })
+
+  const actMutation = useMutation({
+    mutationFn: ({ instanceId, action }: { instanceId: string; action: 'Approved' | 'Rejected' }) =>
+      approvalsService.act(instanceId, action),
+    onSuccess: (_, vars) => {
+      toast.success(vars.action === 'Approved' ? 'Invoice approved' : 'Invoice rejected')
+      queryClient.invalidateQueries({ queryKey: ['approvals-pending'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard', clientId] })
+    },
+    onError: () => toast.error('Action failed'),
+  })
+
+  const baseCurrency = activeClient?.baseCurrency ?? 'GBP'
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('en-GB', { style: 'currency', currency: baseCurrency }).format(amount)
+
+  const daysWaiting = (d: string) =>
+    Math.max(0, Math.floor((Date.now() - new Date(d).getTime()) / 86400000))
+
+  // API → UI mapping (real data only)
   const kpis = {
-    totalInvoices:   data?.totalInvoices   ?? dummyKpis.totalInvoices,
-    pendingApproval: data?.pendingInvoices  ?? dummyKpis.pendingApproval,
-    approved:        data?.approvedInvoices ?? dummyKpis.approved,
-    rejected:        data?.failedInvoices   ?? dummyKpis.rejected,
-    totalSpend:      data?.totalSpend       ?? dummyKpis.totalSpend,
+    totalInvoices:   data?.totalInvoices    ?? 0,
+    pendingApproval: data?.pendingInvoices  ?? 0,
+    approved:        data?.approvedInvoices ?? 0,
+    rejected:        data?.failedInvoices   ?? 0,
+    totalSpend:      data?.totalSpend       ?? 0,
   }
 
   const chartData = data?.monthlyBreakdown?.map(m => ({
     month: m.monthName,
     amount: m.totalAmount,
-  })) ?? spendTrendData
+  })) ?? []
 
   const statusData = [
     { name: 'Approved', value: kpis.approved, color: '#10b981' },
@@ -125,11 +117,12 @@ export default function DashboardPage() {
 
   const invoices = data?.recentInvoices?.map(inv => ({
     id:     inv.id,
+    num:    (inv as { invoiceNumber?: string }).invoiceNumber ?? inv.id.slice(0, 8),
     vendor: inv.vendorName ?? '—',
     amount: inv.totalAmount ?? 0,
     date:   inv.createdAt.split('T')[0],
     status: inv.status,
-  })) ?? dummyRecentInvoices
+  })) ?? []
 
   if (isLoading) {
     return (
@@ -270,9 +263,12 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
+                {invoices.length === 0 && (
+                  <tr><td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-400">No invoices yet — upload your first invoice.</td></tr>
+                )}
                 {invoices.map((inv) => (
                   <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-blue-600">{inv.id}</td>
+                    <td className="px-6 py-4 font-medium text-blue-600">{inv.num}</td>
                     <td className="px-6 py-4 text-gray-700">{inv.vendor}</td>
                     <td className="px-6 py-4 text-gray-900 font-medium">{formatCurrency(inv.amount)}</td>
                     <td className="px-6 py-4 text-gray-500">{inv.date}</td>
@@ -298,24 +294,36 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {dummyPendingApprovals.map((item) => (
+            {pendingApprovals.length === 0 && (
+              <div className="p-6 text-center text-sm text-gray-400">Nothing waiting for approval. 🎉</div>
+            )}
+            {pendingApprovals.slice(0, 5).map((item) => (
               <div key={item.id} className="p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-sm font-medium text-blue-600">{item.id}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{item.vendor}</p>
+                    <Link href={`/invoices/${item.invoiceId}`} className="text-sm font-medium text-blue-600 hover:underline">
+                      {item.invoiceNumber ?? item.invoiceId.slice(0, 8)}
+                    </Link>
+                    <p className="text-xs text-gray-500 mt-0.5">{item.workflowName} · step {item.currentStep}</p>
                   </div>
-                  <p className="text-sm font-semibold text-gray-900 shrink-0">{formatCurrency(item.amount)}</p>
                 </div>
                 <div className="flex items-center gap-1 mt-2">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="text-xs text-amber-600">Waiting {item.daysWaiting} day{item.daysWaiting > 1 ? 's' : ''}</span>
+                  <span className="text-xs text-amber-600">
+                    Waiting {daysWaiting(item.createdAt)} day{daysWaiting(item.createdAt) === 1 ? '' : 's'}
+                  </span>
                 </div>
                 <div className="flex gap-2 mt-3">
-                  <button className="flex-1 text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg py-1.5 font-medium transition-colors">
+                  <button
+                    onClick={() => actMutation.mutate({ instanceId: item.id, action: 'Approved' })}
+                    disabled={actMutation.isPending}
+                    className="flex-1 text-xs bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-700 rounded-lg py-1.5 font-medium transition-colors">
                     Approve
                   </button>
-                  <button className="flex-1 text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded-lg py-1.5 font-medium transition-colors">
+                  <button
+                    onClick={() => actMutation.mutate({ instanceId: item.id, action: 'Rejected' })}
+                    disabled={actMutation.isPending}
+                    className="flex-1 text-xs bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-700 rounded-lg py-1.5 font-medium transition-colors">
                     Reject
                   </button>
                 </div>
