@@ -521,6 +521,7 @@ function StepSubmit({ invoiceId, summary, onBack }: {
   invoiceId: string; summary: SummaryData; onBack: () => void
 }) {
   const router            = useRouter()
+  const { activeClient }  = useAuth()
   const [loading, setLoading] = useState(false)
 
   const SUMMARY = [
@@ -536,8 +537,9 @@ function StepSubmit({ invoiceId, summary, onBack }: {
   const handleSubmit = async () => {
     setLoading(true)
     try {
-      // Kick off the approval workflow for the reviewed invoice
-      await approvalsService.start(invoiceId)
+      // Kick off the approval workflow; auto-creates a default
+      // workflow template for the client if none exists yet
+      await approvalsService.startWithDefault(activeClient!.id, invoiceId)
       toast.success('Invoice submitted for approval!')
       router.push('/invoices')
     } catch {
