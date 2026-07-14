@@ -11,9 +11,9 @@ import {
 import { useAuth } from '../../../../hooks/useAuth'
 import { invoiceService } from '../../../../services/invoice.service'
 import api from '../../../../lib/axios'
+import { resolveFileUrl } from '../../../../lib/files'
 import { toast } from 'sonner'
 
-const BACKEND_URL = 'https://localhost:7007'
 
 // ── Dummy fallbacks ──
 const LINE_ITEMS = [
@@ -428,7 +428,7 @@ function DocumentViewer({ invoice, loading }: { invoice: any; loading: boolean }
   const [zoom, setZoom] = useState(100)
 
   const fileUrl = invoice?.fileUrl
-    ? `${BACKEND_URL}${invoice.fileUrl}`
+    ? resolveFileUrl(invoice.fileUrl)
     : null
 
   const isPdf = invoice?.fileType?.toLowerCase() === 'pdf'
@@ -615,7 +615,7 @@ export default function InvoiceDetailPage() {
             <X className="w-4 h-4" /> Reject
           </button>
           <button
-            onClick={() => invoice?.fileUrl && window.open(`${process.env.NEXT_PUBLIC_API_URL}${invoice.fileUrl}`, '_blank')}
+            onClick={() => invoice?.fileUrl && window.open(resolveFileUrl(invoice.fileUrl), '_blank')}
             className="inline-flex items-center gap-1.5 h-8 px-3 border border-gray-300 hover:bg-gray-50 text-gray-600 text-sm font-semibold rounded-lg transition-colors">
             <Download className="w-4 h-4" /> Download
           </button>

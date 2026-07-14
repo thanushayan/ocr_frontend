@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 import { invoiceService } from '../../../services/invoice.service'
+import { resolveFileUrl } from '../../../lib/files'
 import { approvalsService } from '../../../services/approvals.service'
 import { DuplicateCheckResult } from '../../../types/invoice.types'
 
@@ -30,7 +31,6 @@ interface SummaryData {
   dueDate: string; subtotal: string; tax: string; total: string
 }
 
-const BACKEND_URL = 'https://localhost:7007'
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -410,7 +410,7 @@ function StepReview({ invoiceId, fileUrl, clientId, onNext, onBack }: {
     ocrFields.find(f => f.label.toLowerCase().includes(keyword.toLowerCase()))?.value ?? '—'
 
   const lowCount  = ocrFields.filter(f => f.confidence < 70).length
-  const imageUrl  = fileUrl ? `${BACKEND_URL}${fileUrl}` : ''
+  const imageUrl  = resolveFileUrl(fileUrl)
 
   const handleNext = () => onNext({
     vendor:        getField('vendor'),
